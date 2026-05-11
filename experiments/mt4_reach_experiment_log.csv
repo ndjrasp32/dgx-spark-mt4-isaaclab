@@ -1,0 +1,1 @@
+timestamp,run_label,seed,num_envs,max_iterations,reward_profile,action_penalty,notes,checkpoint,checkpoint_iteration,success_rate,mean_distance,min_distance,mean_reward,checkpoint_path,reward_plot,success_plot,distance_plot,episode_length_plot

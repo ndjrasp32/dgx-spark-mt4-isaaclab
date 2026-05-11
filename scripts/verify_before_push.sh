@@ -2,9 +2,13 @@
 set -euo pipefail
 
 PROJECT_DIR="${HOME}/work/robotarm/mt4_isaac_lab_task"
+ISAACLAB_DIR="${HOME}/work/isaac/src/IsaacLab"
 BEST_FILE="${PROJECT_DIR}/logs/plots/best_checkpoint.txt"
 
 cd "${PROJECT_DIR}"
+if [[ -z "${TERM:-}" || "${TERM}" == "dumb" ]]; then
+  export TERM=xterm-256color
+fi
 
 echo "[INFO] Verifying MT4 IsaacLab helper scripts..."
 
@@ -13,7 +17,11 @@ bash -n scripts/train_128_1000.sh \
   scripts/plot_and_select_best.sh \
   scripts/play_best.sh \
   scripts/kill_isaac_processes.sh \
+  scripts/record_experiment_result.sh \
   scripts/verify_before_push.sh
+
+echo "[INFO] Checking Python syntax..."
+"${ISAACLAB_DIR}/isaaclab.sh" -p -m py_compile "${PROJECT_DIR}/tools/record_mt4_experiment.py"
 
 echo "[INFO] Running plot/select smoke test..."
 scripts/plot_and_select_best.sh
