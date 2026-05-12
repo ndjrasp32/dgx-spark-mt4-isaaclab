@@ -13,11 +13,6 @@ LOG_ROOT = Path.home() / "work/isaac/src/IsaacLab/logs/rsl_rl/mt4_simplified_rea
 OUT_DIR = Path.home() / "work/robotarm/mt4_isaac_lab_task/logs/plots"
 OUT_DIR.mkdir(parents=True, exist_ok=True)
 
-# 이번 추천 학습 기준: 64 env x 32 steps
-# 다른 설정으로 학습했다면 이 값만 바꾸면 됨.
-EXPECTED_STEPS_PER_ITER = 64 * 32
-
-
 def latest_run_dir():
     ckpts = sorted(LOG_ROOT.rglob("model_*.pt"), key=lambda p: p.stat().st_mtime)
     if ckpts:
@@ -134,8 +129,13 @@ def checkpoint_summary(run_dir, ea, tags):
 
     if max_scalar_step > max(1000, max_ckpt_iter * 10):
         step_mode = "total_steps"
+        steps_per_iter = max_scalar_step / max(max_ckpt_iter, 1)
     else:
         step_mode = "iteration"
+        steps_per_iter = 1
+
+    print("[INFO] checkpoint step mode =", step_mode)
+    print("[INFO] estimated steps/iteration =", f"{steps_per_iter:.2f}")
 
     rows = []
 
@@ -145,7 +145,7 @@ def checkpoint_summary(run_dir, ea, tags):
             continue
 
         if step_mode == "total_steps":
-            target_step = it * EXPECTED_STEPS_PER_ITER
+            target_step = round(it * steps_per_iter)
         else:
             target_step = it
 

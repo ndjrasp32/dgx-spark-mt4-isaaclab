@@ -126,7 +126,7 @@ class MT4ReachEnvCfg(DirectRLEnvCfg):
 
     # simplified pre-grasp geometry
     gripper_tip_offset_b = (0.06, 0.0, 0.0)
-    gripper_forward_axis_b = (1.0, 0.0, 0.0)
+    gripper_forward_axis_b = (-1.0, 0.0, 0.0)
     pregrasp_standoff = 0.055
     min_object_clearance = 0.030
     alignment_success = 0.65
