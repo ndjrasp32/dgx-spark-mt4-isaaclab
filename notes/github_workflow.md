@@ -48,6 +48,7 @@ git push origin main
 
 - Shell script 변경 시 `bash -n scripts/*.sh`가 통과해야 합니다.
 - `scripts/plot_and_select_best.sh`가 실행되어 plot과 `best_checkpoint.txt`를 만들 수 있어야 합니다.
+- 실시간 학습 그래프는 `scripts/tensorboard_mt4.sh`로 확인합니다.
 - 실험 결과를 보존할 때는 `scripts/record_experiment_result.sh`로 `experiments/mt4_reach_experiment_log.csv`에 기록합니다.
 - `best_checkpoint.txt`가 비어 있거나 checkpoint 경로가 깨져 있으면 push 전에 고칩니다.
 - `train_128_1000.sh`와 `play_best.sh`는 Isaac Sim 실행 시간이 길 수 있으므로 기본 자동 검증에서는 실행하지 않습니다.

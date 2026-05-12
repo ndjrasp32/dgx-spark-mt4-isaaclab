@@ -18,6 +18,7 @@ bash -n scripts/train_128_1000.sh \
   scripts/play_best.sh \
   scripts/kill_isaac_processes.sh \
   scripts/record_experiment_result.sh \
+  scripts/tensorboard_mt4.sh \
   scripts/verify_before_push.sh
 
 echo "[INFO] Checking Python syntax..."

@@ -35,6 +35,13 @@ if [[ ! -f "${CHECKPOINT}" ]]; then
   exit 1
 fi
 
+if command -v xdpyinfo >/dev/null 2>&1 && ! xdpyinfo -display "${DISPLAY}" >/dev/null 2>&1; then
+  echo "[WARN] DISPLAY=${DISPLAY} is not accessible from this shell."
+  echo "       If you are using VNC, run this in the VNC terminal first:"
+  echo "       xhost +SI:localuser:${USER}"
+  echo "       Then run play_best.sh again from the same user/session."
+fi
+
 echo "[INFO] Playing ${TASK_NAME}"
 echo "[INFO] checkpoint=${CHECKPOINT}"
 

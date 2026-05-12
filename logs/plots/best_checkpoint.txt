@@ -1,1 +1,1 @@
-/home/spark-robotics/work/isaac/src/IsaacLab/logs/rsl_rl/mt4_simplified_reach_direct/2026-05-10_16-05-12/model_0.pt
+/home/spark-robotics/work/isaac/src/IsaacLab/logs/rsl_rl/mt4_simplified_reach_direct/2026-05-12_14-30-05/model_950.pt

@@ -1,6 +1,5 @@
 from pathlib import Path
 import csv
-import math
 
 PLOTS_DIR = Path.home() / "work/robotarm/mt4_isaac_lab_task/logs/plots"
 CSV_PATH = PLOTS_DIR / "mt4_checkpoint_summary.csv"
@@ -29,10 +28,12 @@ with CSV_PATH.open("r", encoding="utf-8") as f:
 if not rows:
     raise SystemExit("[ERROR] no rows in checkpoint summary")
 
-# success_rate가 있는 경우 success_rate 최대값 기준
+# success_rate가 거의 0에 가까운 reach 초기 실험에서는 우연한 초기 성공이
+# best checkpoint를 왜곡할 수 있다. 이 경우 mean_distance를 우선한다.
 rows_with_success = [r for r in rows if r["_success_rate"] is not None]
+max_success_rate = max((r["_success_rate"] for r in rows_with_success), default=None)
 
-if rows_with_success:
+if rows_with_success and max_success_rate is not None and max_success_rate >= 0.01:
     best = max(
         rows_with_success,
         key=lambda r: (
@@ -41,12 +42,19 @@ if rows_with_success:
             -9999.0 if r["_mean_reward"] is None else r["_mean_reward"],
         ),
     )
-    reason = "highest success_rate"
+    reason = "highest meaningful success_rate"
 else:
     rows_with_distance = [r for r in rows if r["_mean_distance"] is not None]
     if rows_with_distance:
-        best = min(rows_with_distance, key=lambda r: r["_mean_distance"])
-        reason = "lowest mean_distance"
+        best = min(
+            rows_with_distance,
+            key=lambda r: (
+                r["_mean_distance"],
+                -9999.0 if r["_success_rate"] is None else -r["_success_rate"],
+                -9999.0 if r["_mean_reward"] is None else -r["_mean_reward"],
+            ),
+        )
+        reason = "lowest mean_distance because success_rate is below 0.01"
     else:
         rows_with_reward = [r for r in rows if r["_mean_reward"] is not None]
         if rows_with_reward:
