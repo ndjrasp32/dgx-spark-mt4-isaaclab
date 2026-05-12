@@ -24,7 +24,9 @@ FIELDS = [
     "checkpoint",
     "checkpoint_iteration",
     "success_rate",
+    "mean_pregrasp_distance",
     "mean_distance",
+    "mean_alignment",
     "min_distance",
     "mean_reward",
     "checkpoint_path",
@@ -94,6 +96,20 @@ def ensure_log_header() -> None:
     if not LOG_PATH.exists() or LOG_PATH.stat().st_size == 0:
         with LOG_PATH.open("w", encoding="utf-8", newline="") as f:
             csv.DictWriter(f, fieldnames=FIELDS).writeheader()
+        return
+
+    with LOG_PATH.open("r", encoding="utf-8", newline="") as f:
+        rows = list(csv.DictReader(f))
+        existing_fields = list(rows[0].keys()) if rows else []
+
+    if existing_fields == FIELDS:
+        return
+
+    with LOG_PATH.open("w", encoding="utf-8", newline="") as f:
+        writer = csv.DictWriter(f, fieldnames=FIELDS)
+        writer.writeheader()
+        for row in rows:
+            writer.writerow({field: row.get(field, "") for field in FIELDS})
 
 
 def main() -> None:
@@ -114,7 +130,9 @@ def main() -> None:
         "checkpoint": summary.get("checkpoint", ""),
         "checkpoint_iteration": summary.get("iteration", ""),
         "success_rate": summary.get("success_rate", ""),
+        "mean_pregrasp_distance": summary.get("mean_pregrasp_distance", ""),
         "mean_distance": summary.get("mean_distance", ""),
+        "mean_alignment": summary.get("mean_alignment", ""),
         "min_distance": summary.get("min_distance", ""),
         "mean_reward": summary.get("mean_reward", ""),
         "checkpoint_path": checkpoint_path,
@@ -132,6 +150,7 @@ def main() -> None:
     print(" run_label     =", row["run_label"])
     print(" checkpoint    =", row["checkpoint"])
     print(" success_rate  =", row["success_rate"])
+    print(" pregrasp_dist =", row["mean_pregrasp_distance"])
     print(" mean_distance =", row["mean_distance"])
 
 

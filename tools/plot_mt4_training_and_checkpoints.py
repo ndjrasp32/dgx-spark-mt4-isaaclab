@@ -107,24 +107,30 @@ def checkpoint_summary(run_dir, ea, tags):
         return
 
     success_tag = find_tag(tags, ["mt4/success_rate", "success_rate", "success"])
+    pregrasp_dist_tag = find_tag(tags, ["mt4/mean_pregrasp_distance", "mean_pregrasp_distance", "pregrasp_distance"])
     mean_dist_tag = find_tag(tags, ["mt4/mean_distance", "mean_distance"])
+    alignment_tag = find_tag(tags, ["mt4/mean_alignment", "mean_alignment", "alignment"])
     min_dist_tag = find_tag(tags, ["mt4/min_distance", "min_distance"])
     reward_tag = find_tag(tags, ["Train/mean_reward", "mean_reward", "reward"])
 
     print("[INFO] selected tags:")
     print(" success   =", success_tag)
+    print(" pregrasp  =", pregrasp_dist_tag)
     print(" mean_dist =", mean_dist_tag)
+    print(" alignment =", alignment_tag)
     print(" min_dist  =", min_dist_tag)
     print(" reward    =", reward_tag)
 
     sx, sy = get_series(ea, success_tag)
+    pdx, pdy = get_series(ea, pregrasp_dist_tag)
     mdx, mdy = get_series(ea, mean_dist_tag)
+    ax, ay = get_series(ea, alignment_tag)
     mindx, mindy = get_series(ea, min_dist_tag)
     rx, ry = get_series(ea, reward_tag)
 
     # 자동 추정: scalar step이 iteration 번호인지 total step인지 판단
     max_ckpt_iter = max(parse_ckpt_iter(p) or 0 for p in ckpts)
-    max_scalar_step = max(sx + mdx + mindx + rx) if (sx + mdx + mindx + rx) else 0
+    max_scalar_step = max(sx + pdx + mdx + ax + mindx + rx) if (sx + pdx + mdx + ax + mindx + rx) else 0
 
     if max_scalar_step > max(1000, max_ckpt_iter * 10):
         step_mode = "total_steps"
@@ -144,7 +150,9 @@ def checkpoint_summary(run_dir, ea, tags):
             target_step = it
 
         ss, sv = nearest_value(sx, sy, target_step)
+        ps, pv = nearest_value(pdx, pdy, target_step)
         ms, mv = nearest_value(mdx, mdy, target_step)
+        als, alv = nearest_value(ax, ay, target_step)
         mins, minv = nearest_value(mindx, mindy, target_step)
         rs, rv = nearest_value(rx, ry, target_step)
 
@@ -154,7 +162,9 @@ def checkpoint_summary(run_dir, ea, tags):
             "target_step": target_step,
             "nearest_success_step": ss,
             "success_rate": sv,
+            "mean_pregrasp_distance": pv,
             "mean_distance": mv,
+            "mean_alignment": alv,
             "min_distance": minv,
             "mean_reward": rv,
             "path": str(ckpt),
@@ -185,15 +195,17 @@ def checkpoint_summary(run_dir, ea, tags):
         plt.close()
         print("[OK] wrote", out)
 
-    if any(r["mean_distance"] is not None for r in rows):
-        xs = [r["iteration"] for r in rows if r["mean_distance"] is not None]
-        ys = [r["mean_distance"] for r in rows if r["mean_distance"] is not None]
+    distance_key = "mean_pregrasp_distance" if any(r["mean_pregrasp_distance"] is not None for r in rows) else "mean_distance"
+
+    if any(r[distance_key] is not None for r in rows):
+        xs = [r["iteration"] for r in rows if r[distance_key] is not None]
+        ys = [r[distance_key] for r in rows if r[distance_key] is not None]
 
         plt.figure(figsize=(9, 5))
         plt.plot(xs, ys, marker="o")
-        plt.title("MT4 checkpoint mean distance")
+        plt.title(f"MT4 checkpoint {distance_key}")
         plt.xlabel("checkpoint iteration")
-        plt.ylabel("mean distance")
+        plt.ylabel(distance_key)
         plt.grid(True)
         out = OUT_DIR / "mt4_checkpoint_mean_distance.png"
         plt.tight_layout()

@@ -47,6 +47,7 @@ git push origin main
 ## 검증 기준
 
 - Shell script 변경 시 `bash -n scripts/*.sh`가 통과해야 합니다.
+- IsaacLab 내부 task를 바꾼 경우 `source/mt4_reach_direct` 스냅샷도 함께 갱신합니다.
 - `scripts/plot_and_select_best.sh`가 실행되어 plot과 `best_checkpoint.txt`를 만들 수 있어야 합니다.
 - 실시간 학습 그래프는 `scripts/tensorboard_mt4.sh`로 확인합니다.
 - 실험 결과를 보존할 때는 `scripts/record_experiment_result.sh`로 `experiments/mt4_reach_experiment_log.csv`에 기록합니다.

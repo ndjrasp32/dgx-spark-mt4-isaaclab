@@ -16,13 +16,18 @@ echo "[INFO] Checking shell syntax..."
 bash -n scripts/train_128_1000.sh \
   scripts/plot_and_select_best.sh \
   scripts/play_best.sh \
+  scripts/play_best_single.sh \
   scripts/kill_isaac_processes.sh \
   scripts/record_experiment_result.sh \
   scripts/tensorboard_mt4.sh \
+  scripts/train_visual_16_300.sh \
   scripts/verify_before_push.sh
 
 echo "[INFO] Checking Python syntax..."
 "${ISAACLAB_DIR}/isaaclab.sh" -p -m py_compile "${PROJECT_DIR}/tools/record_mt4_experiment.py"
+"${ISAACLAB_DIR}/isaaclab.sh" -p -m py_compile "${PROJECT_DIR}/tools/plot_mt4_training_and_checkpoints.py"
+"${ISAACLAB_DIR}/isaaclab.sh" -p -m py_compile "${PROJECT_DIR}/tools/select_best_mt4_checkpoint.py"
+"${ISAACLAB_DIR}/isaaclab.sh" -p -m py_compile "${PROJECT_DIR}/source/mt4_reach_direct/mt4_reach_env.py"
 
 echo "[INFO] Running plot/select smoke test..."
 scripts/plot_and_select_best.sh

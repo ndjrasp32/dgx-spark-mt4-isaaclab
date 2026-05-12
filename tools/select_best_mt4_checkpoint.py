@@ -21,8 +21,13 @@ with CSV_PATH.open("r", encoding="utf-8") as f:
                 return None
 
         row["_success_rate"] = to_float(row.get("success_rate"))
+        row["_mean_pregrasp_distance"] = to_float(row.get("mean_pregrasp_distance"))
         row["_mean_distance"] = to_float(row.get("mean_distance"))
+        row["_mean_alignment"] = to_float(row.get("mean_alignment"))
         row["_mean_reward"] = to_float(row.get("mean_reward"))
+        row["_primary_distance"] = row["_mean_pregrasp_distance"]
+        if row["_primary_distance"] is None:
+            row["_primary_distance"] = row["_mean_distance"]
         rows.append(row)
 
 if not rows:
@@ -38,23 +43,28 @@ if rows_with_success and max_success_rate is not None and max_success_rate >= 0.
         rows_with_success,
         key=lambda r: (
             r["_success_rate"],
-            -9999.0 if r["_mean_distance"] is None else -r["_mean_distance"],
+            -9999.0 if r["_primary_distance"] is None else -r["_primary_distance"],
+            -9999.0 if r["_mean_alignment"] is None else r["_mean_alignment"],
             -9999.0 if r["_mean_reward"] is None else r["_mean_reward"],
         ),
     )
     reason = "highest meaningful success_rate"
 else:
-    rows_with_distance = [r for r in rows if r["_mean_distance"] is not None]
+    rows_with_distance = [r for r in rows if r["_primary_distance"] is not None]
     if rows_with_distance:
         best = min(
             rows_with_distance,
             key=lambda r: (
-                r["_mean_distance"],
+                r["_primary_distance"],
                 -9999.0 if r["_success_rate"] is None else -r["_success_rate"],
+                -9999.0 if r["_mean_alignment"] is None else -r["_mean_alignment"],
                 -9999.0 if r["_mean_reward"] is None else -r["_mean_reward"],
             ),
         )
-        reason = "lowest mean_distance because success_rate is below 0.01"
+        if best["_mean_pregrasp_distance"] is not None:
+            reason = "lowest mean_pregrasp_distance because success_rate is below 0.01"
+        else:
+            reason = "lowest mean_distance because success_rate is below 0.01"
     else:
         rows_with_reward = [r for r in rows if r["_mean_reward"] is not None]
         if rows_with_reward:
@@ -70,7 +80,9 @@ print("reason        =", reason)
 print("checkpoint    =", best.get("checkpoint"))
 print("iteration     =", best.get("iteration"))
 print("success_rate  =", best.get("success_rate"))
+print("pregrasp_dist =", best.get("mean_pregrasp_distance"))
 print("mean_distance =", best.get("mean_distance"))
+print("mean_alignment=", best.get("mean_alignment"))
 print("min_distance  =", best.get("min_distance"))
 print("mean_reward   =", best.get("mean_reward"))
 print("path          =", best.get("path"))
