@@ -59,9 +59,9 @@ class MT4ReachEnvCfg(DirectRLEnvCfg):
             pos=(0.0, 0.0, 0.0),
             joint_pos={
                 "base_yaw": 0.0,
-                "shoulder": 0.75,
-                "elbow": -0.45,
-                "wrist_pitch": 0.25,
+                "shoulder": 1.20,
+                "elbow": -1.05,
+                "wrist_pitch": 0.75,
             },
         ),
         actuators={
@@ -122,12 +122,14 @@ class MT4ReachEnvCfg(DirectRLEnvCfg):
     success_radius = 0.035
     target_x_range = (0.16, 0.30)
     target_y_range = (-0.16, 0.16)
-    target_z_range = (0.10, 0.26)
+    target_z_range = (0.06, 0.18)
 
     # simplified pre-grasp geometry
     gripper_tip_offset_b = (0.06, 0.0, 0.0)
     gripper_forward_axis_b = (-1.0, 0.0, 0.0)
     pregrasp_standoff = 0.055
+    approach_horizontal_weight = 0.25
+    approach_down_weight = 1.0
     min_object_clearance = 0.030
     alignment_success = 0.65
 
@@ -145,7 +147,7 @@ class MT4ReachEnv(DirectRLEnv):
         self.joint_lower = torch.tensor([-1.57, 0.05, -1.20, -1.20], device=self.device)
         self.joint_upper = torch.tensor([1.57, 1.45, 1.40, 1.20], device=self.device)
 
-        self.home_joint_pos = torch.tensor([0.0, 0.75, -0.45, 0.25], device=self.device)
+        self.home_joint_pos = torch.tensor([0.0, 1.20, -1.05, 0.75], device=self.device)
 
         self.actions = torch.zeros((self.num_envs, 4), device=self.device)
         self.joint_targets = self.home_joint_pos.repeat(self.num_envs, 1)
@@ -309,11 +311,14 @@ class MT4ReachEnv(DirectRLEnv):
         self.gripper_forward = math_utils.quat_apply(wrist_quat_w, forward_axis_b)
         self.gripper_forward = self.gripper_forward / torch.clamp(torch.linalg.norm(self.gripper_forward, dim=-1, keepdim=True), min=1e-6)
 
-        approach_xy = self.targets.clone()
-        approach_xy[:, 2] = 0.0
+        radial_dir = self.targets.clone()
+        radial_dir[:, 2] = 0.0
         fallback = torch.tensor([1.0, 0.0, 0.0], device=self.device).repeat(self.num_envs, 1)
-        approach_norm = torch.linalg.norm(approach_xy, dim=-1, keepdim=True)
-        self.approach_dir = torch.where(approach_norm > 1e-6, approach_xy / torch.clamp(approach_norm, min=1e-6), fallback)
+        radial_norm = torch.linalg.norm(radial_dir, dim=-1, keepdim=True)
+        radial_dir = torch.where(radial_norm > 1e-6, radial_dir / torch.clamp(radial_norm, min=1e-6), fallback)
+        down_dir = torch.tensor([0.0, 0.0, -1.0], device=self.device).repeat(self.num_envs, 1)
+        self.approach_dir = self.cfg.approach_horizontal_weight * radial_dir + self.cfg.approach_down_weight * down_dir
+        self.approach_dir = self.approach_dir / torch.clamp(torch.linalg.norm(self.approach_dir, dim=-1, keepdim=True), min=1e-6)
         self.pregrasp_targets = self.targets - self.cfg.pregrasp_standoff * self.approach_dir
 
         self.to_target = self.targets - self.gripper_tip_pos

@@ -11,8 +11,10 @@
 ## 보상 의도
 
 - gripper tip이 target 중심을 관통하지 않고 target 앞 standoff 위치로 이동합니다.
-- gripper forward axis가 target을 향하도록 정렬합니다.
+- gripper tip은 target 위쪽의 pre-grasp 위치로 이동합니다.
+- gripper forward axis가 위에서 아래로 target을 향하도록 정렬합니다.
 - target에 너무 가까워지는 움직임은 clearance penalty로 억제합니다.
+- 성공 또는 timeout으로 episode가 끝나면 다음 episode는 접힌 home joint pose에서 다시 시작합니다.
 - 실제 gripper open/close는 아직 action에 포함하지 않고, 다음 grasp task에서 추가합니다.
 
 ## 다음 확장
