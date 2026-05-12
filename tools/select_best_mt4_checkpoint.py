@@ -52,19 +52,42 @@ if rows_with_success and max_success_rate is not None and max_success_rate >= 0.
 else:
     rows_with_distance = [r for r in rows if r["_primary_distance"] is not None]
     if rows_with_distance:
-        best = min(
-            rows_with_distance,
-            key=lambda r: (
-                r["_primary_distance"],
-                -9999.0 if r["_success_rate"] is None else -r["_success_rate"],
-                -9999.0 if r["_mean_alignment"] is None else -r["_mean_alignment"],
-                -9999.0 if r["_mean_reward"] is None else -r["_mean_reward"],
-            ),
-        )
-        if best["_mean_pregrasp_distance"] is not None:
-            reason = "lowest mean_pregrasp_distance because success_rate is below 0.01"
+        rows_with_alignment = [
+            r for r in rows_with_distance
+            if r["_mean_alignment"] is not None and r["_mean_alignment"] >= 0.65
+        ]
+        if rows_with_alignment:
+            def balanced_score(r):
+                distance = r["_primary_distance"]
+                target_distance = r["_mean_distance"]
+                target_standoff_error = abs((target_distance or 0.055) - 0.055)
+                success = r["_success_rate"] or 0.0
+                alignment = r["_mean_alignment"] or 0.0
+                reward = r["_mean_reward"] or 0.0
+                return (
+                    -distance
+                    -0.25 * target_standoff_error
+                    +0.08 * alignment
+                    +10.0 * success
+                    +0.000001 * reward
+                )
+
+            best = max(rows_with_alignment, key=balanced_score)
+            reason = "best balanced pregrasp distance and alignment because success_rate is below 0.01"
         else:
-            reason = "lowest mean_distance because success_rate is below 0.01"
+            best = min(
+                rows_with_distance,
+                key=lambda r: (
+                    r["_primary_distance"],
+                    -9999.0 if r["_success_rate"] is None else -r["_success_rate"],
+                    -9999.0 if r["_mean_alignment"] is None else r["_mean_alignment"],
+                    -9999.0 if r["_mean_reward"] is None else -r["_mean_reward"],
+                ),
+            )
+            if best["_mean_pregrasp_distance"] is not None:
+                reason = "lowest mean_pregrasp_distance because success_rate and alignment are below thresholds"
+            else:
+                reason = "lowest mean_distance because success_rate and alignment are below thresholds"
     else:
         rows_with_reward = [r for r in rows if r["_mean_reward"] is not None]
         if rows_with_reward:
