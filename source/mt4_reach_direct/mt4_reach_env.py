@@ -127,8 +127,8 @@ class MT4ReachEnvCfg(DirectRLEnvCfg):
     min_target_base_radius = 0.18
 
     # simplified pre-grasp geometry
-    gripper_tip_offset_b = (0.055, 0.0, 0.0)
-    gripper_forward_axis_b = (-1.0, 0.0, 0.0)
+    gripper_tip_offset_b = (0.242, 0.0, 0.0)
+    gripper_forward_axis_b = (1.0, 0.0, 0.0)
     target_radius = 0.035
     desired_touch_distance = 0.040
     touch_success_band = 0.018

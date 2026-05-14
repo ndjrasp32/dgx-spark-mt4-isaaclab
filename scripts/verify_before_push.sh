@@ -17,6 +17,7 @@ bash -n scripts/train_128_1000.sh \
   scripts/plot_and_select_best.sh \
   scripts/play_best.sh \
   scripts/play_best_single.sh \
+  scripts/play_best_demo.sh \
   scripts/kill_isaac_processes.sh \
   scripts/record_experiment_result.sh \
   scripts/tensorboard_mt4.sh \
