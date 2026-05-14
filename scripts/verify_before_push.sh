@@ -22,6 +22,7 @@ bash -n scripts/train_128_1000.sh \
   scripts/record_experiment_result.sh \
   scripts/tensorboard_mt4.sh \
   scripts/train_visual_16_300.sh \
+  scripts/train_stage_b_insertion_128_500.sh \
   scripts/verify_before_push.sh
 
 echo "[INFO] Checking Python syntax..."

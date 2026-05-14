@@ -103,8 +103,12 @@ def checkpoint_summary(run_dir, ea, tags):
 
     success_tag = find_tag(tags, ["mt4/success_rate", "success_rate", "success"])
     pregrasp_success_tag = find_tag(tags, ["mt4/pregrasp_success_rate", "pregrasp_success_rate"])
+    stage2_ready_tag = find_tag(tags, ["mt4/stage2_alignment_ready_rate", "stage2_alignment_ready_rate"])
+    stage3_ready_tag = find_tag(tags, ["mt4/stage3_insertion_ready_rate", "stage3_insertion_ready_rate"])
+    stage3_touch_ready_tag = find_tag(tags, ["mt4/stage3_touch_ready_rate", "stage3_touch_ready_rate"])
     pregrasp_dist_tag = find_tag(tags, ["mt4/mean_pregrasp_distance", "mean_pregrasp_distance", "pregrasp_distance"])
     touch_target_dist_tag = find_tag(tags, ["mt4/mean_touch_target_distance", "mean_touch_target_distance"])
+    touch_error_tag = find_tag(tags, ["mt4/mean_touch_error", "mean_touch_error"])
     mean_dist_tag = find_tag(tags, ["mt4/mean_distance", "mean_distance"])
     insertion_lateral_tag = find_tag(tags, ["mt4/mean_insertion_lateral_error", "mean_insertion_lateral_error"])
     alignment_tag = find_tag(tags, ["mt4/mean_alignment", "mean_alignment", "alignment"])
@@ -118,8 +122,12 @@ def checkpoint_summary(run_dir, ea, tags):
     print("[INFO] selected tags:")
     print(" success          =", success_tag)
     print(" pregrasp_success =", pregrasp_success_tag)
+    print(" stage2_ready     =", stage2_ready_tag)
+    print(" stage3_ready     =", stage3_ready_tag)
+    print(" stage3_touch     =", stage3_touch_ready_tag)
     print(" pregrasp         =", pregrasp_dist_tag)
     print(" touch_target     =", touch_target_dist_tag)
+    print(" touch_error      =", touch_error_tag)
     print(" mean_dist        =", mean_dist_tag)
     print(" lateral_error    =", insertion_lateral_tag)
     print(" alignment        =", alignment_tag)
@@ -132,8 +140,12 @@ def checkpoint_summary(run_dir, ea, tags):
 
     sx, sy = get_series(ea, success_tag)
     psx, psy = get_series(ea, pregrasp_success_tag)
+    s2x, s2y = get_series(ea, stage2_ready_tag)
+    s3x, s3y = get_series(ea, stage3_ready_tag)
+    stx, sty = get_series(ea, stage3_touch_ready_tag)
     pdx, pdy = get_series(ea, pregrasp_dist_tag)
     tdx, tdy = get_series(ea, touch_target_dist_tag)
+    tex, tey = get_series(ea, touch_error_tag)
     mdx, mdy = get_series(ea, mean_dist_tag)
     ilx, ily = get_series(ea, insertion_lateral_tag)
     ax, ay = get_series(ea, alignment_tag)
@@ -146,7 +158,7 @@ def checkpoint_summary(run_dir, ea, tags):
 
     # 자동 추정: scalar step이 iteration 번호인지 total step인지 판단
     max_ckpt_iter = max(parse_ckpt_iter(p) or 0 for p in ckpts)
-    scalar_steps = sx + psx + pdx + tdx + mdx + ilx + ax + pax + iax + tcx + ipx + mindx + rx
+    scalar_steps = sx + psx + s2x + s3x + stx + pdx + tdx + tex + mdx + ilx + ax + pax + iax + tcx + ipx + mindx + rx
     max_scalar_step = max(scalar_steps) if scalar_steps else 0
 
     if max_scalar_step > max(1000, max_ckpt_iter * 10):
@@ -173,8 +185,12 @@ def checkpoint_summary(run_dir, ea, tags):
 
         ss, sv = nearest_value(sx, sy, target_step)
         pss, psv = nearest_value(psx, psy, target_step)
+        s2s, s2v = nearest_value(s2x, s2y, target_step)
+        s3s, s3v = nearest_value(s3x, s3y, target_step)
+        sts, stv = nearest_value(stx, sty, target_step)
         ps, pv = nearest_value(pdx, pdy, target_step)
         tds, tdv = nearest_value(tdx, tdy, target_step)
+        tes, tev = nearest_value(tex, tey, target_step)
         ms, mv = nearest_value(mdx, mdy, target_step)
         ils, ilv = nearest_value(ilx, ily, target_step)
         als, alv = nearest_value(ax, ay, target_step)
@@ -192,8 +208,12 @@ def checkpoint_summary(run_dir, ea, tags):
             "nearest_success_step": ss,
             "success_rate": sv,
             "pregrasp_success_rate": psv,
+            "stage2_alignment_ready_rate": s2v,
+            "stage3_insertion_ready_rate": s3v,
+            "stage3_touch_ready_rate": stv,
             "mean_pregrasp_distance": pv,
             "mean_touch_target_distance": tdv,
+            "mean_touch_error": tev,
             "mean_distance": mv,
             "mean_insertion_lateral_error": ilv,
             "mean_alignment": alv,
@@ -267,7 +287,7 @@ def main():
     plot_group(ea, tags, "alignment", ["alignment"])
     plot_group(ea, tags, "touch_error", ["touch_error", "touch_target"])
     plot_group(ea, tags, "insertion_lateral_error", ["insertion_lateral_error"])
-    plot_group(ea, tags, "stage", ["stage2", "stage3", "insertion_progress", "pregrasp_success"])
+    plot_group(ea, tags, "stage", ["stage2", "stage3", "touch_ready", "insertion_progress", "pregrasp_success"])
     plot_group(ea, tags, "safety", ["object_overlap", "target_contact", "body_target_clearance"])
     plot_group(ea, tags, "episode_length", ["episode_length", "length"])
 

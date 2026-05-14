@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import os
+
 import torch
 
 import isaaclab.sim as sim_utils
@@ -25,6 +27,10 @@ class MT4ReachEnvCfg(DirectRLEnvCfg):
     action_space = 5
     observation_space = 28
     state_space = 0
+
+    # "integrated" keeps the original staged reach reward. "stage_b_insertion" is a
+    # curriculum profile used after the approach/pregrasp policy already works.
+    training_mode = "integrated"
 
     # physics
     sim: sim_utils.SimulationCfg = sim_utils.SimulationCfg(
@@ -120,7 +126,7 @@ class MT4ReachEnvCfg(DirectRLEnvCfg):
 
     # task
     action_scale = 0.045
-    success_radius = 0.045
+    success_radius = 0.055
     target_x_range = (0.20, 0.32)
     target_y_range = (-0.16, 0.16)
     target_z_range = (0.08, 0.18)
@@ -131,9 +137,9 @@ class MT4ReachEnvCfg(DirectRLEnvCfg):
     gripper_forward_axis_b = (1.0, 0.0, 0.0)
     target_radius = 0.035
     desired_touch_distance = 0.040
-    touch_success_band = 0.026
+    touch_success_band = 0.045
     pregrasp_standoff = 0.080
-    pregrasp_success_radius = 0.075
+    pregrasp_success_radius = 0.095
     approach_horizontal_weight = 1.0
     approach_down_weight = 1.0
     min_object_clearance = 0.035
@@ -148,11 +154,12 @@ class MT4ReachEnvCfg(DirectRLEnvCfg):
     stage2_pregrasp_weight = 3.8
     stage2_touch_weight = 2.4
     stage2_hold_weight = 1.0
-    stage3_line_weight = 2.2
-    stage3_touch_weight = 3.2
-    stage3_progress_weight = 1.2
-    pregrasp_bonus_weight = 3.0
-    success_bonus_weight = 14.0
+    stage3_line_weight = 3.4
+    stage3_touch_weight = 5.0
+    stage3_progress_weight = 3.0
+    stage3_depth_weight = 5.0
+    pregrasp_bonus_weight = 1.2
+    success_bonus_weight = 18.0
     target_contact_penalty_weight = 70.0
     wrong_way_penalty_weight = 0.8
     action_penalty_weight = 0.012
@@ -164,6 +171,7 @@ class MT4ReachEnv(DirectRLEnv):
     cfg: MT4ReachEnvCfg
 
     def __init__(self, cfg: MT4ReachEnvCfg, render_mode: str | None = None, **kwargs):
+        self.training_mode = self._apply_training_mode_cfg(cfg)
         super().__init__(cfg, render_mode, **kwargs)
 
         self.joint_names = ["base_yaw", "shoulder", "elbow", "wrist_pitch", "gripper_pitch"]
@@ -213,6 +221,46 @@ class MT4ReachEnv(DirectRLEnv):
         self.insertion_progress = torch.zeros((self.num_envs,), device=self.device)
 
         self._sample_targets(torch.arange(self.num_envs, device=self.device))
+
+    @staticmethod
+    def _apply_training_mode_cfg(cfg: MT4ReachEnvCfg) -> str:
+        mode = os.environ.get("MT4_REACH_TRAINING_MODE", cfg.training_mode).strip().lower()
+        cfg.training_mode = mode
+
+        if mode in ("", "integrated", "full"):
+            return "integrated"
+
+        if mode in ("stage_b", "stage_b_insertion", "insertion"):
+            # Stage B assumes the policy already has a usable pregrasp behavior.
+            # It narrows the classroom target range and increases the learning
+            # signal for moving from the blue pregrasp marker toward the red target.
+            cfg.target_x_range = (0.22, 0.30)
+            cfg.target_y_range = (-0.10, 0.10)
+            cfg.target_z_range = (0.10, 0.16)
+            cfg.pregrasp_success_radius = 0.110
+            cfg.success_radius = 0.065
+            cfg.touch_success_band = 0.055
+            cfg.stage1_alignment_weight = 2.4
+            cfg.stage1_wrong_way_weight = 0.8
+            cfg.stage2_pregrasp_weight = 2.0
+            cfg.stage2_touch_weight = 1.2
+            cfg.stage2_hold_weight = 0.6
+            cfg.stage3_line_weight = 4.8
+            cfg.stage3_touch_weight = 7.0
+            cfg.stage3_progress_weight = 5.5
+            cfg.stage3_depth_weight = 9.0
+            cfg.pregrasp_bonus_weight = 0.5
+            cfg.success_bonus_weight = 28.0
+            cfg.target_contact_penalty_weight = 100.0
+            cfg.action_penalty_weight = 0.010
+            cfg.time_penalty_weight = 0.006
+            return "stage_b_insertion"
+
+        raise ValueError(
+            "Unsupported MT4_REACH_TRAINING_MODE. "
+            "Use 'integrated' or 'stage_b_insertion'. "
+            f"Received: {mode!r}"
+        )
 
     def _setup_scene(self):
         self.robot = Articulation(self.cfg.robot_cfg)
@@ -266,12 +314,13 @@ class MT4ReachEnv(DirectRLEnv):
         insertion_alignment_reward = torch.clamp(0.5 * (self.insertion_alignment + 1.0), min=0.0, max=1.0)
         alignment_gate = torch.clamp((self.insertion_alignment - 0.10) / 0.90, min=0.0, max=1.0)
         pregrasp_reward = 1.0 / (1.0 + 55.0 * self.pregrasp_distance * self.pregrasp_distance)
-        pregrasp_touch_reward = torch.exp(-900.0 * self.pregrasp_distance * self.pregrasp_distance)
-        pregrasp_gate = torch.exp(-650.0 * self.pregrasp_distance * self.pregrasp_distance)
+        pregrasp_touch_reward = torch.exp(-650.0 * self.pregrasp_distance * self.pregrasp_distance)
+        pregrasp_gate = torch.exp(-120.0 * self.pregrasp_distance * self.pregrasp_distance)
         wrong_way_penalty = torch.clamp(-self.insertion_alignment, min=0.0)
         stage3_gate = alignment_gate * pregrasp_gate
-        touch_ready_reward = torch.exp(-700.0 * self.touch_target_distance * self.touch_target_distance)
-        insertion_line_reward = torch.exp(-1400.0 * self.insertion_lateral_error * self.insertion_lateral_error)
+        touch_ready_reward = torch.exp(-360.0 * self.touch_target_distance * self.touch_target_distance)
+        touch_depth_reward = 1.0 / (1.0 + 220.0 * self.touch_error * self.touch_error)
+        insertion_line_reward = torch.exp(-520.0 * self.insertion_lateral_error * self.insertion_lateral_error)
         action_penalty = torch.sum(self.actions * self.actions, dim=-1)
         joint_vel = self.robot.data.joint_vel[:, self.joint_ids]
         joint_velocity_penalty = torch.sum(joint_vel * joint_vel, dim=-1)
@@ -300,6 +349,7 @@ class MT4ReachEnv(DirectRLEnv):
                 self.cfg.stage3_line_weight * insertion_line_reward
                 + self.cfg.stage3_touch_weight * touch_ready_reward
                 + self.cfg.stage3_progress_weight * self.insertion_progress
+                + self.cfg.stage3_depth_weight * touch_depth_reward
             )
             + pregrasp_bonus
             + success_bonus
@@ -326,14 +376,19 @@ class MT4ReachEnv(DirectRLEnv):
         pregrasp_success = self.pregrasp_distance < self.cfg.pregrasp_success_radius
         stage2_ready = self.insertion_alignment > self.cfg.insertion_alignment_success
         stage3_ready = stage2_ready & pregrasp_success & (self.insertion_lateral_error < self.cfg.touch_success_band)
+        stage3_touch_ready = stage3_ready & (self.touch_error < self.cfg.touch_success_band)
         time_out = self.episode_length_buf >= self.max_episode_length - 1
 
         # Training/evaluation logs.
         self.extras["log"] = {
+            "mt4/training_mode_stage_b": torch.tensor(
+                1.0 if self.training_mode == "stage_b_insertion" else 0.0, device=self.device
+            ),
             "mt4/success_rate": success.float().mean(),
             "mt4/pregrasp_success_rate": pregrasp_success.float().mean(),
             "mt4/stage2_alignment_ready_rate": stage2_ready.float().mean(),
             "mt4/stage3_insertion_ready_rate": stage3_ready.float().mean(),
+            "mt4/stage3_touch_ready_rate": stage3_touch_ready.float().mean(),
             "mt4/mean_distance": self.distance.mean(),
             "mt4/mean_pregrasp_distance": self.pregrasp_distance.mean(),
             "mt4/mean_touch_target_distance": self.touch_target_distance.mean(),

@@ -108,7 +108,29 @@ Isaac-MT4-Simplified-Reach-Direct-v0
 
 성공률이 바로 높아지지 않아도 괜찮습니다. 이번 실험의 1차 목표는 세 단계 중 어느 단계에서 막히는지 그래프로 분리해서 보는 것입니다.
 
-## 7. 수업에서 강조할 점
+## 7. 마지막 단계 보정 실험
+
+앞선 alignment-first 실험에서는 방향 정렬 자체는 성공했습니다. `mean_insertion_alignment`가 크게 양수로 올라갔고, `mean_insertion_progress`도 좋아졌습니다. 하지만 최종 성공은 거의 나오지 않았습니다.
+
+그래서 이번에는 마지막 stage 3를 조금 더 학습 가능한 형태로 바꿉니다.
+
+- 선생님 의견:
+  - 먼저 삽입 방향을 찾고, 그 자세로 파란 공에 닿은 뒤, 빨간 공으로 천천히 들어가야 한다.
+  - 빨간 공과 진입 전 충돌하면 감점해야 한다.
+- Codex 제안:
+  - 방향 정렬은 유지하되, final insertion 보상 곡선과 gate가 너무 날카로웠으므로 완화한다.
+  - 성공 band를 교육용 초기 실험에 맞게 조금 넓혀서 성공이 그래프에 나타나도록 한다.
+  - best checkpoint 선택 기준에 stage 3 준비율을 반영한다.
+
+이번 실험에서 좋은 신호는 다음입니다.
+
+1. `stage2_alignment_ready_rate`가 유지된다.
+2. `pregrasp_success_rate`가 0보다 커진다.
+3. `stage3_insertion_ready_rate`가 이전보다 커진다.
+4. `success_rate`가 아주 작게라도 반복적으로 나타난다.
+5. `mean_target_contact_penalty`가 크게 올라가지 않는다.
+
+## 8. 수업에서 강조할 점
 
 학생들에게 보여줄 핵심은 다음입니다.
 

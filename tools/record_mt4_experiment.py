@@ -24,7 +24,12 @@ FIELDS = [
     "checkpoint",
     "checkpoint_iteration",
     "success_rate",
+    "pregrasp_success_rate",
+    "stage2_alignment_ready_rate",
+    "stage3_insertion_ready_rate",
+    "stage3_touch_ready_rate",
     "mean_pregrasp_distance",
+    "mean_touch_error",
     "mean_distance",
     "mean_alignment",
     "mean_pregrasp_alignment",
@@ -134,7 +139,12 @@ def main() -> None:
         "checkpoint": summary.get("checkpoint", ""),
         "checkpoint_iteration": summary.get("iteration", ""),
         "success_rate": summary.get("success_rate", ""),
+        "pregrasp_success_rate": summary.get("pregrasp_success_rate", ""),
+        "stage2_alignment_ready_rate": summary.get("stage2_alignment_ready_rate", ""),
+        "stage3_insertion_ready_rate": summary.get("stage3_insertion_ready_rate", ""),
+        "stage3_touch_ready_rate": summary.get("stage3_touch_ready_rate", ""),
         "mean_pregrasp_distance": summary.get("mean_pregrasp_distance", ""),
+        "mean_touch_error": summary.get("mean_touch_error", ""),
         "mean_distance": summary.get("mean_distance", ""),
         "mean_alignment": summary.get("mean_alignment", ""),
         "mean_pregrasp_alignment": summary.get("mean_pregrasp_alignment", ""),
@@ -158,7 +168,12 @@ def main() -> None:
     print(" run_label     =", row["run_label"])
     print(" checkpoint    =", row["checkpoint"])
     print(" success_rate  =", row["success_rate"])
+    print(" pregrasp_succ =", row["pregrasp_success_rate"])
+    print(" stage2_ready  =", row["stage2_alignment_ready_rate"])
+    print(" stage3_ready  =", row["stage3_insertion_ready_rate"])
+    print(" stage3_touch  =", row["stage3_touch_ready_rate"])
     print(" pregrasp_dist =", row["mean_pregrasp_distance"])
+    print(" touch_error   =", row["mean_touch_error"])
     print(" mean_distance =", row["mean_distance"])
 
 
