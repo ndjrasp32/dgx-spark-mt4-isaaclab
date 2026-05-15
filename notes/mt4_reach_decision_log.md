@@ -512,3 +512,29 @@
   - 성공률을 만드는 데는 성공했다.
   - 다만 완화 조건을 너무 쉽게 이용하면서 stage2/stage3 품질이 낮은 checkpoint가 선택되었다.
   - 다음 실험은 `0.045m`로 줄이되, 성공률만 보지 않고 `stage3_touch_ready_rate`와 함께 선택해야 한다.
+
+## 2026-05-15 relaxed 0.045 curriculum result
+
+- 선생님 의견:
+  - 최종 성공률은 아직 낮다.
+  - 뒷 단계 보상 조건이 앞 단계 행동에 영향을 준다면, 앞 단계와 뒷 단계의 가중치를 다르게 둘 수 있다.
+  - 시간 소모에 따른 가중치도 단계별로 다르게 줄 수 있다.
+- Codex 제안:
+  - 먼저 `0.045m` 성공 반경을 실험한다.
+  - `0.055m`에서 생긴 성공 신호를 완전히 잃지 않으면서 stage3 품질이 회복되는지 확인한다.
+  - 가중치 조정은 이번 결과를 본 뒤 다음 후보로 분리한다.
+- 실행 결과:
+  - run은 `2026-05-15_13-55-22`, best checkpoint는 `model_1600.pt`였다.
+  - `success_rate=0.014404296875`
+  - `stage4_center_ready_rate=0.014404296875`
+  - `stage4_push_ready_rate=0.05615234375`
+  - `stage3_touch_ready_rate=0.366943359375`
+  - `stage2_pregrasp_ready_rate=0.377685546875`
+  - `mean_center_push_progress=0.5669831037521362`
+  - `mean_center_shortest_path_score=0.6251078248023987`
+  - `mean_target_contact_penalty=0.0`
+- 평가:
+  - `0.055m`보다 성공률은 낮아졌지만 stage3 품질은 좋아졌다.
+  - `0.055m`: 성공률은 높지만 stage3가 약하다.
+  - `0.045m`: 성공률은 남아 있고 stage3 품질도 더 낫다.
+  - 다음에는 stage3 보상과 stage4 보상/시간 벌점을 단계별로 분리하는 실험이 타당하다.
