@@ -191,6 +191,7 @@ class MT4ReachEnvCfg(DirectRLEnvCfg):
     stage_latch_weight = 0.0
     progressive_stage_weight = 0.0
     moving_pregrasp_enabled = False
+    moving_pregrasp_goal_mode = "touch"
     moving_pregrasp_step_count = 3
     moving_pregrasp_final_fraction = 0.70
     moving_pregrasp_step_radius = 0.055
@@ -416,6 +417,18 @@ class MT4ReachEnv(DirectRLEnv):
             cfg.moving_pregrasp_enabled = os.environ.get(
                 "MT4_REACH_MOVING_PREGRASP", "0"
             ).strip().lower() in ("1", "true", "yes", "on")
+            cfg.moving_pregrasp_goal_mode = os.environ.get(
+                "MT4_REACH_MOVING_PREGRASP_GOAL", cfg.moving_pregrasp_goal_mode
+            ).strip().lower()
+            if cfg.moving_pregrasp_goal_mode not in ("touch", "center"):
+                raise ValueError(
+                    "Unsupported MT4_REACH_MOVING_PREGRASP_GOAL. "
+                    "Use 'touch' or 'center'. "
+                    f"Received: {cfg.moving_pregrasp_goal_mode!r}"
+                )
+            cfg.desired_touch_distance = float(
+                os.environ.get("MT4_REACH_DESIRED_TOUCH_DISTANCE", str(cfg.desired_touch_distance))
+            )
             cfg.moving_pregrasp_step_count = int(
                 os.environ.get("MT4_REACH_MOVING_PREGRASP_STEPS", "3")
             )
@@ -1099,7 +1112,10 @@ class MT4ReachEnv(DirectRLEnv):
         self.approach_dir[env_ids] = approach_dir
         self.pregrasp_entry_targets[env_ids] = pregrasp_entry_targets
         self.pregrasp_start_targets[env_ids] = pregrasp_targets
-        self.pregrasp_goal_targets[env_ids] = targets - self.cfg.desired_touch_distance * approach_dir
+        if self.cfg.moving_pregrasp_goal_mode == "center":
+            self.pregrasp_goal_targets[env_ids] = targets
+        else:
+            self.pregrasp_goal_targets[env_ids] = targets - self.cfg.desired_touch_distance * approach_dir
         if self.cfg.moving_pregrasp_enabled:
             fraction = self.moving_pregrasp_fraction[env_ids].unsqueeze(-1)
             pregrasp_targets = pregrasp_targets + fraction * (
@@ -1119,7 +1135,7 @@ class MT4ReachEnv(DirectRLEnv):
             return
 
         step_count = max(int(self.cfg.moving_pregrasp_step_count), 1)
-        final_fraction = min(max(float(self.cfg.moving_pregrasp_final_fraction), 0.0), 0.95)
+        final_fraction = min(max(float(self.cfg.moving_pregrasp_final_fraction), 0.0), 1.0)
         current_step_reached = (
             stage1_ready
             & (self.pregrasp_distance < self.cfg.moving_pregrasp_step_radius)

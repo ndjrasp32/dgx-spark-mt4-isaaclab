@@ -36,6 +36,7 @@ bash -n scripts/train_128_1000.sh \
   scripts/train_stage4_near_terminal_128_300.sh \
   scripts/train_stage4_latched_progressive_128_300.sh \
   scripts/train_stage4_guided_blue_128_300.sh \
+  scripts/train_stage4_blue_center_128_300.sh \
   scripts/train_stage4_center_visual_low_exploration_16_120.sh \
   scripts/copy_latest_training_video_lowres.sh \
   scripts/verify_before_push.sh

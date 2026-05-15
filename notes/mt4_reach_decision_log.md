@@ -684,3 +684,33 @@
   - 선생님 아이디어는 효과가 있었다. 파란 구체를 따라 빨간 구체 쪽으로 들어가는 비율과 push ready 지표가 크게 올라갔다.
   - 그러나 strict final center success는 아직 낮다.
   - 다음에는 `0.045m` 성공 반경을 아주 약간 완화하거나, strict success와 guided-progress checkpoint 선택 기준을 분리해야 한다.
+
+## 2026-05-15 blue center curriculum experiment
+
+- 선생님 의견:
+  - 파란 구체의 최종 위치를 빨간 구체 중심점으로 잡으면, 마지막에 따로 밀어 넣는 동작을 만들지 않아도 된다.
+  - 파란 구체로 가야 할 경로를 만들어 주면, 빨간 구체 중심으로 들어가는 것이 곧 최종 성공 경로가 될 수 있다.
+- Codex 제안:
+  - 기존 guided-blue 구조는 유지하되, 파란 구체의 최종 목표를 `touch`와 `center` 중 고를 수 있게 한다.
+  - `center` 모드에서는 `desired_touch_distance=0.0`으로 두어, 파란 목표와 빨간 중심이 같아지도록 한다.
+  - 단, gripper center만 red center로 들어가는 것을 허용하고, 다른 로봇팔 링크가 target에 닿으면 계속 벌점을 받도록 둔다.
+- 적용:
+  - `MT4_REACH_MOVING_PREGRASP_GOAL=center`
+  - `MT4_REACH_MOVING_PREGRASP_FINAL_FRACTION=1.0`
+  - `MT4_REACH_DESIRED_TOUCH_DISTANCE=0.0`
+  - `scripts/train_stage4_blue_center_128_300.sh`
+- 실행 결과:
+  - run은 `2026-05-15_15-05-58`이었다.
+  - best checkpoint는 `model_2000.pt`였다.
+  - `success_rate=0.0009765625`
+  - `stage4_center_ready_rate=0.0009765625`
+  - `stage4_push_ready_rate=0.394287109375`
+  - `moving_pregrasp_final_rate=0.842041015625`
+  - `mean_moving_pregrasp_fraction=0.84521484375`
+  - `mean_distance=0.061940357089042664`
+  - `mean_target_contact_penalty=0.0`
+- 평가:
+  - 파란 구체를 빨간 중심까지 보내는 안내 curriculum은 잘 작동했다.
+  - 충돌 벌점은 0으로 유지되어 안전 조건도 깨지지 않았다.
+  - 그러나 평균 거리가 `final_center_radius=0.050`보다 바깥인 약 0.062m에 머물러 strict final success는 거의 생기지 않았다.
+  - 다음 단계는 최종 성공 반경을 잠시 0.060으로 완화해 성공 사례를 만들고, 이후 성공 반경을 다시 줄이는 terminal-center curriculum으로 가는 것이 좋다.

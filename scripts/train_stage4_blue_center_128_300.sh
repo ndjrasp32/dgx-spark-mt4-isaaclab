@@ -1,0 +1,99 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+PROJECT_DIR="${HOME}/work/robotarm/mt4_isaac_lab_task"
+BEST_FILE="${PROJECT_DIR}/logs/plots/guided_blue_checkpoint.txt"
+STATE_FILE="${MT4_REACH_STAGE4_STATE_FILE:-${PROJECT_DIR}/data/stage4_center_states/latest.pt}"
+
+cd ~/work/isaac/src/IsaacLab
+unset CMEEL_PREFIX
+if [[ -z "${TERM:-}" || "${TERM}" == "dumb" ]]; then
+  export TERM=xterm-256color
+fi
+
+TASK_NAME="Isaac-MT4-Simplified-Reach-Direct-v0"
+
+if [[ ! -s "${BEST_FILE}" ]]; then
+  echo "[ERROR] Blue-center Stage-4 training needs a guided starting checkpoint."
+  echo "        guided_blue_checkpoint.txt was not found or is empty:"
+  echo "        ${BEST_FILE}"
+  echo "        Run guided-blue training first, or write an existing checkpoint path to this file."
+  exit 1
+fi
+
+if [[ ! -f "${STATE_FILE}" ]]; then
+  echo "[ERROR] Stage-4 replay state file does not exist:"
+  echo "        ${STATE_FILE}"
+  echo "        Run ${PROJECT_DIR}/scripts/collect_stage4_center_states.sh first."
+  exit 1
+fi
+
+CHECKPOINT_PATH="$(tr -d '\r\n' < "${BEST_FILE}")"
+if [[ ! -f "${CHECKPOINT_PATH}" ]]; then
+  echo "[ERROR] The checkpoint recorded in guided_blue_checkpoint.txt does not exist:"
+  echo "        ${CHECKPOINT_PATH}"
+  echo "        Refresh ${BEST_FILE} with an existing checkpoint path."
+  exit 1
+fi
+
+LOAD_RUN="$(basename "$(dirname "${CHECKPOINT_PATH}")")"
+LOAD_CHECKPOINT="$(basename "${CHECKPOINT_PATH}")"
+
+export MT4_REACH_TRAINING_MODE=stage4_center
+export MT4_REACH_RESET_MODE=pregrasp_replay
+export MT4_REACH_PREGRASP_STATE_FILE="${STATE_FILE}"
+export MT4_REACH_REPLAY_PROB="${MT4_REACH_REPLAY_PROB:-0.96}"
+export MT4_REACH_REPLAY_JOINT_NOISE="${MT4_REACH_REPLAY_JOINT_NOISE:-0.002}"
+export MT4_REACH_REPLAY_TARGET_NOISE="${MT4_REACH_REPLAY_TARGET_NOISE:-0.0005}"
+export MT4_REACH_REPLAY_JOINT_VELOCITY_SCALE="${MT4_REACH_REPLAY_JOINT_VELOCITY_SCALE:-0.04}"
+export MT4_REACH_MOVING_PREGRASP="${MT4_REACH_MOVING_PREGRASP:-1}"
+export MT4_REACH_MOVING_PREGRASP_GOAL="${MT4_REACH_MOVING_PREGRASP_GOAL:-center}"
+export MT4_REACH_MOVING_PREGRASP_STEPS="${MT4_REACH_MOVING_PREGRASP_STEPS:-3}"
+export MT4_REACH_MOVING_PREGRASP_FINAL_FRACTION="${MT4_REACH_MOVING_PREGRASP_FINAL_FRACTION:-1.0}"
+export MT4_REACH_MOVING_PREGRASP_STEP_RADIUS="${MT4_REACH_MOVING_PREGRASP_STEP_RADIUS:-0.060}"
+export MT4_REACH_MOVING_PREGRASP_REWARD_WEIGHT="${MT4_REACH_MOVING_PREGRASP_REWARD_WEIGHT:-14.0}"
+export MT4_REACH_DESIRED_TOUCH_DISTANCE="${MT4_REACH_DESIRED_TOUCH_DISTANCE:-0.0}"
+export MT4_REACH_FINAL_INSERTION_WEIGHT="${MT4_REACH_FINAL_INSERTION_WEIGHT:-32.0}"
+export MT4_REACH_FINAL_CENTER_RADIUS="${MT4_REACH_FINAL_CENTER_RADIUS:-0.050}"
+export MT4_REACH_NEAR_TERMINAL_RADIUS="${MT4_REACH_NEAR_TERMINAL_RADIUS:-0.060}"
+export MT4_REACH_NEAR_TERMINAL_WEIGHT="${MT4_REACH_NEAR_TERMINAL_WEIGHT:-5.0}"
+export MT4_REACH_STAGE_LATCH_WEIGHT="${MT4_REACH_STAGE_LATCH_WEIGHT:-0.6}"
+export MT4_REACH_PROGRESSIVE_STAGE_WEIGHT="${MT4_REACH_PROGRESSIVE_STAGE_WEIGHT:-0.35}"
+export MT4_REACH_ACTION_SCALE="${MT4_REACH_ACTION_SCALE:-0.024}"
+export MT4_REACH_ACTION_PENALTY="${MT4_REACH_ACTION_PENALTY:-0.020}"
+export MT4_REACH_STAGE4_PUSH_WEIGHT="${MT4_REACH_STAGE4_PUSH_WEIGHT:-64.0}"
+export MT4_REACH_STAGE4_PUSH_IMPROVEMENT_WEIGHT="${MT4_REACH_STAGE4_PUSH_IMPROVEMENT_WEIGHT:-100.0}"
+export MT4_REACH_STAGE4_PUSH_DEPTH_WEIGHT="${MT4_REACH_STAGE4_PUSH_DEPTH_WEIGHT:-40.0}"
+export MT4_REACH_STAGE4_SHORTEST_PATH_WEIGHT="${MT4_REACH_STAGE4_SHORTEST_PATH_WEIGHT:-48.0}"
+export MT4_REACH_STAGE4_DISTANCE_SHELL_WEIGHT="${MT4_REACH_STAGE4_DISTANCE_SHELL_WEIGHT:-40.0}"
+export MT4_REACH_STAGE4_TIME_PENALTY="${MT4_REACH_STAGE4_TIME_PENALTY:-0.080}"
+export MT4_REACH_STAGE3_TIME_PRESERVE_WEIGHT="${MT4_REACH_STAGE3_TIME_PRESERVE_WEIGHT:-0.6}"
+export MT4_REACH_TERMINAL_SUCCESS_QUALITY_WEIGHT="${MT4_REACH_TERMINAL_SUCCESS_QUALITY_WEIGHT:-20.0}"
+export MT4_REACH_SUCCESS_BONUS="${MT4_REACH_SUCCESS_BONUS:-72.0}"
+export MT4_REACH_CENTER_PUSH_IMPROVEMENT_SCALE="${MT4_REACH_CENTER_PUSH_IMPROVEMENT_SCALE:-0.008}"
+export MT4_REACH_CENTER_DISTANCE_SHELL_SIZE="${MT4_REACH_CENTER_DISTANCE_SHELL_SIZE:-0.005}"
+export MT4_REACH_STAGE4_PUSH_READY_PROGRESS="${MT4_REACH_STAGE4_PUSH_READY_PROGRESS:-0.70}"
+
+MAX_ITERATIONS="${MT4_MAX_ITERATIONS:-300}"
+
+echo "[INFO] Blue-center Stage-4 training for ${TASK_NAME}"
+echo "[INFO] mode=${MT4_REACH_TRAINING_MODE} reset=${MT4_REACH_RESET_MODE}"
+echo "[INFO] replay_state_file=${MT4_REACH_PREGRASP_STATE_FILE}"
+echo "[INFO] moving_pregrasp=${MT4_REACH_MOVING_PREGRASP} goal=${MT4_REACH_MOVING_PREGRASP_GOAL} steps=${MT4_REACH_MOVING_PREGRASP_STEPS} final_fraction=${MT4_REACH_MOVING_PREGRASP_FINAL_FRACTION}"
+echo "[INFO] moving_step_radius=${MT4_REACH_MOVING_PREGRASP_STEP_RADIUS} moving_reward=${MT4_REACH_MOVING_PREGRASP_REWARD_WEIGHT}"
+echo "[INFO] desired_touch_distance=${MT4_REACH_DESIRED_TOUCH_DISTANCE} final_center_radius=${MT4_REACH_FINAL_CENTER_RADIUS}"
+echo "[INFO] resume_run=${LOAD_RUN} checkpoint=${LOAD_CHECKPOINT}"
+echo "[INFO] num_envs=128 max_iterations=${MAX_ITERATIONS} headless=true"
+
+./isaaclab.sh -p scripts/reinforcement_learning/rsl_rl/train.py \
+  --task "${TASK_NAME}" \
+  --num_envs 128 \
+  --max_iterations "${MAX_ITERATIONS}" \
+  --headless \
+  --resume \
+  --load_run "${LOAD_RUN}" \
+  --checkpoint "${LOAD_CHECKPOINT}" \
+  --seed "${MT4_SEED:-42}" \
+  agent.policy.init_noise_std="${MT4_INIT_NOISE_STD:-0.36}" \
+  agent.algorithm.entropy_coef="${MT4_ENTROPY_COEF:-0.0028}" \
+  "$@"
