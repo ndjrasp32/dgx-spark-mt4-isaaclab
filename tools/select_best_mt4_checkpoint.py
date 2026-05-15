@@ -51,6 +51,7 @@ with CSV_PATH.open("r", encoding="utf-8") as f:
         row["_mean_target_center_improvement"] = to_float(row.get("mean_target_center_improvement"))
         row["_mean_target_center_shell_improvement"] = to_float(row.get("mean_target_center_shell_improvement"))
         row["_mean_center_shortest_path_score"] = to_float(row.get("mean_center_shortest_path_score"))
+        row["_mean_stage4_time_pressure"] = to_float(row.get("mean_stage4_time_pressure"))
         row["_mean_pregrasp_line_error"] = to_float(row.get("mean_pregrasp_line_error"))
         row["_mean_reward"] = to_float(row.get("mean_reward"))
         row["_primary_distance"] = row["_mean_pregrasp_distance"]
@@ -116,6 +117,7 @@ else:
                 target_center_improvement = r["_mean_target_center_improvement"] or 0.0
                 target_center_shell_improvement = r["_mean_target_center_shell_improvement"] or 0.0
                 center_shortest_path_score = r["_mean_center_shortest_path_score"] or 0.0
+                stage4_time_pressure = r["_mean_stage4_time_pressure"] or 0.0
                 line_error = r["_mean_pregrasp_line_error"] or 0.0
                 reward = r["_mean_reward"] or 0.0
                 return (
@@ -144,6 +146,7 @@ else:
                     +0.40 * target_center_improvement
                     +0.25 * target_center_shell_improvement
                     +0.35 * center_shortest_path_score
+                    -0.05 * stage4_time_pressure
                     -0.50 * (best_center_distance if best_center_distance is not None else distance)
                     +10.0 * success
                     -5.0 * contact_penalty
@@ -211,6 +214,7 @@ print("best_center  =", best.get("mean_best_target_center_distance"))
 print("center_impr  =", best.get("mean_target_center_improvement"))
 print("shell_impr   =", best.get("mean_target_center_shell_improvement"))
 print("shortest_path=", best.get("mean_center_shortest_path_score"))
+print("stage4_time  =", best.get("mean_stage4_time_pressure"))
 print("line_error   =", best.get("mean_pregrasp_line_error"))
 print("min_distance  =", best.get("min_distance"))
 print("mean_reward   =", best.get("mean_reward"))

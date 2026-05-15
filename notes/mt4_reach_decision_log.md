@@ -430,6 +430,42 @@
   - 단점은 push-ready와 push progress가 이전 strong-push보다 낮아졌다는 점이다.
   - 다음은 shortest-path 구조를 유지하되 마지막 push depth를 다시 조금 올리는 혼합형이 좋다.
 
+## 2026-05-15 stage 4 time pressure and slight exploration
+
+- 선생님 의견:
+  - 최종 성공 직전까지 시간 벌점을 줘야 한다.
+  - stage4에 들어오면 빨간 구체를 잡을 수 있는 위치까지 최단거리로 들어가야 한다.
+  - 성공 지점에 도착하면 시간 벌점을 제거하고, 추가 보상/벌점을 더하지 않고 종료하는 것이 맞다.
+  - 탐색 비율은 아주 살짝 올려 조심스러움이 너무 강해지지 않게 한다.
+  - GUI로 직접 확인한다.
+- Codex 제안:
+  - `stage3_ready` 이후를 stage4 진입으로 보고 `stage4_time_pressure`를 추가한다.
+  - success step에서는 shaped reward를 더하지 않고 terminal `success_bonus`만 반환한다.
+  - 탐색은 `entropy_coef=0.0025`, `init_noise_std=0.40`, `action_scale=0.026` 정도로 조금만 올린다.
+  - 같은 보상 설정으로 GUI 16 env와 headless 128 env를 비교한다.
+- 적용:
+  - `stage4_time_penalty_weight` 추가
+  - `mean_stage4_time_pressure` 추가
+  - `scripts/train_stage4_time_pressure_visual_16_120.sh` 추가
+- 실행 결과:
+  - GUI 확인 run은 `2026-05-15_13-40-54`였다.
+  - 128 env 학습 run은 `2026-05-15_13-43-44`였다.
+  - best checkpoint는 `model_1600.pt`였다.
+  - `success_rate=0.00048828125`
+  - `stage3_touch_ready_rate=0.7861328125`
+  - `stage4_push_ready_rate=0.19921875`
+  - `mean_center_push_progress=0.6045380234718323`
+  - `mean_best_center_push_progress=0.668278157711029`
+  - `mean_center_shortest_path_score=0.673416256904602`
+  - `mean_stage4_time_pressure=0.4132959246635437`
+  - `mean_target_contact_penalty=0.0`
+- 평가:
+  - 시간 벌점은 stage4 이후 오래 머무르는 행동을 구분하는 지표로 정상 동작했다.
+  - 탐색을 아주 조금 올린 결과, shortest-path-only 실험보다 `stage4_push_ready_rate`가 회복되었다.
+  - 그러나 최종 성공률은 아직 낮다.
+  - 현재 문제는 파란 지점 접근보다 빨간 구체 중심을 집게 중앙에 넣는 마지막 정밀 진입이다.
+  - 다음 제안은 성공 직전 상태를 더 많이 replay하거나, terminal 성공 반경/집게 중심 정의를 재검토하는 것이다.
+
 ## 2026-05-15 stage 4 low-exploration visual run plan
 
 - 선생님 의견:
