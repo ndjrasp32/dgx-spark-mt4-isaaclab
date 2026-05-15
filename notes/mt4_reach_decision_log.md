@@ -714,3 +714,21 @@
   - 충돌 벌점은 0으로 유지되어 안전 조건도 깨지지 않았다.
   - 그러나 평균 거리가 `final_center_radius=0.050`보다 바깥인 약 0.062m에 머물러 strict final success는 거의 생기지 않았다.
   - 다음 단계는 최종 성공 반경을 잠시 0.060으로 완화해 성공 사례를 만들고, 이후 성공 반경을 다시 줄이는 terminal-center curriculum으로 가는 것이 좋다.
+
+## 2026-05-15 blue marker step gate adjustment
+
+- 선생님 의견:
+  - 파란 구체가 순식간에 사라져서 빨간 구체를 향해 단계적으로 진입하는 느낌이 약하다.
+  - 집게 한쪽 다리가 아니라 집게의 딱 중간 지점이 파란 구체 중심과 일치해야 한다.
+  - 파란 구체를 더 작게 만들고, 파란 구체를 재생성하면서 빨간 구체 방향으로 유도해야 한다.
+- Codex 진단:
+  - 코드상 기준점은 이미 집게 중심점이다. `gripper_tip_pos`라는 legacy 변수명만 남아 있고 실제 값은 `gripper_center_pos`다.
+  - 다만 기존 `steps=3`, `step_radius=0.060`은 단계 간 거리보다 통과 반경이 커서, 파란 구체가 너무 빨리 다음 단계로 넘어갈 수 있었다.
+- 적용:
+  - 파란 marker radius를 `0.025 -> 0.016`으로 줄였다.
+  - blue-center 기본값을 `steps=5`, `step_radius=0.018`, `hold_steps=8`로 조정했다.
+  - 집게 중심점이 현재 파란 구체 중심 근처에 일정 프레임 머물러야 다음 파란 구체로 넘어가도록 `moving_pregrasp_hold_count`를 추가했다.
+  - `moving_pregrasp_step_ready_rate`, `mean_moving_pregrasp_hold_progress` 지표를 추가했다.
+- 기대:
+  - 파란 구체가 사라지는 것이 아니라, 빨간 구체 중심까지 더 촘촘하게 재생성되는 안내점처럼 보일 것이다.
+  - 한쪽 finger가 스치는 행동보다 집게 가운데를 맞추는 행동이 더 명확히 요구된다.

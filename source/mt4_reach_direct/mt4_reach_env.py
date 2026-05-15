@@ -117,7 +117,7 @@ class MT4ReachEnvCfg(DirectRLEnvCfg):
         prim_path="/Visuals/MT4PregraspTargets",
         markers={
             "pregrasp": sim_utils.SphereCfg(
-                radius=0.025,
+                radius=0.016,
                 visual_material=sim_utils.PreviewSurfaceCfg(
                     diffuse_color=(0.05, 0.25, 1.0),
                     emissive_color=(0.0, 0.05, 0.35),
@@ -195,6 +195,7 @@ class MT4ReachEnvCfg(DirectRLEnvCfg):
     moving_pregrasp_step_count = 3
     moving_pregrasp_final_fraction = 0.70
     moving_pregrasp_step_radius = 0.055
+    moving_pregrasp_hold_steps = 1
     moving_pregrasp_reward_weight = 0.0
     final_insertion_weight = 0.0
     center_push_improvement_scale = 0.020
@@ -293,6 +294,8 @@ class MT4ReachEnv(DirectRLEnv):
         self.progressive_stage_weight = torch.zeros((self.num_envs,), device=self.device)
         self.moving_pregrasp_stage = torch.zeros((self.num_envs,), dtype=torch.long, device=self.device)
         self.moving_pregrasp_fraction = torch.zeros((self.num_envs,), device=self.device)
+        self.moving_pregrasp_hold_count = torch.zeros((self.num_envs,), dtype=torch.long, device=self.device)
+        self.moving_pregrasp_step_ready = torch.zeros((self.num_envs,), dtype=torch.bool, device=self.device)
         self.moving_pregrasp_reward = torch.zeros((self.num_envs,), device=self.device)
         self.final_insertion_reward = torch.zeros((self.num_envs,), device=self.device)
         self.pregrasp_line_error = torch.zeros((self.num_envs,), device=self.device)
@@ -437,6 +440,9 @@ class MT4ReachEnv(DirectRLEnv):
             )
             cfg.moving_pregrasp_step_radius = float(
                 os.environ.get("MT4_REACH_MOVING_PREGRASP_STEP_RADIUS", "0.055")
+            )
+            cfg.moving_pregrasp_hold_steps = int(
+                os.environ.get("MT4_REACH_MOVING_PREGRASP_HOLD_STEPS", "1")
             )
             cfg.moving_pregrasp_reward_weight = float(
                 os.environ.get("MT4_REACH_MOVING_PREGRASP_REWARD_WEIGHT", "0.0")
@@ -970,6 +976,13 @@ class MT4ReachEnv(DirectRLEnv):
             "mt4/moving_pregrasp_final_rate": (
                 self.moving_pregrasp_stage >= max(int(self.cfg.moving_pregrasp_step_count), 1)
             ).float().mean(),
+            "mt4/moving_pregrasp_step_ready_rate": getattr(
+                self, "moving_pregrasp_step_ready", torch.zeros_like(success, dtype=torch.bool)
+            ).float().mean(),
+            "mt4/mean_moving_pregrasp_hold_progress": (
+                self.moving_pregrasp_hold_count.float()
+                / max(float(max(int(self.cfg.moving_pregrasp_hold_steps), 1)), 1.0)
+            ).clamp(max=1.0).mean(),
             "mt4/mean_moving_pregrasp_reward": getattr(
                 self, "moving_pregrasp_reward", torch.zeros_like(self.distance)
             ).mean(),
@@ -1014,6 +1027,8 @@ class MT4ReachEnv(DirectRLEnv):
         self.progressive_stage_weight[env_ids] = 0.0
         self.moving_pregrasp_stage[env_ids] = 0
         self.moving_pregrasp_fraction[env_ids] = 0.0
+        self.moving_pregrasp_hold_count[env_ids] = 0
+        self.moving_pregrasp_step_ready[env_ids] = False
         self.moving_pregrasp_reward[env_ids] = 0.0
         self.final_insertion_reward[env_ids] = 0.0
         self.pregrasp_entry_reached[env_ids] = False
@@ -1136,17 +1151,30 @@ class MT4ReachEnv(DirectRLEnv):
 
         step_count = max(int(self.cfg.moving_pregrasp_step_count), 1)
         final_fraction = min(max(float(self.cfg.moving_pregrasp_final_fraction), 0.0), 1.0)
+        hold_steps = max(int(self.cfg.moving_pregrasp_hold_steps), 1)
         current_step_reached = (
             stage1_ready
             & (self.pregrasp_distance < self.cfg.moving_pregrasp_step_radius)
             & (hold_stability_reward > self.cfg.pregrasp_hold_min_stability)
         )
-        can_advance = current_step_reached & (self.moving_pregrasp_stage < step_count)
+        self.moving_pregrasp_step_ready = current_step_reached
+        self.moving_pregrasp_hold_count = torch.where(
+            current_step_reached,
+            torch.clamp(self.moving_pregrasp_hold_count + 1, max=hold_steps),
+            torch.zeros_like(self.moving_pregrasp_hold_count),
+        )
+        can_advance = (
+            current_step_reached
+            & (self.moving_pregrasp_hold_count >= hold_steps)
+            & (self.moving_pregrasp_stage < step_count)
+        )
         if not torch.any(can_advance):
             return
 
         env_ids = torch.nonzero(can_advance, as_tuple=False).squeeze(-1)
         self.moving_pregrasp_stage[env_ids] += 1
+        self.moving_pregrasp_hold_count[env_ids] = 0
+        self.moving_pregrasp_step_ready[env_ids] = False
         self.moving_pregrasp_fraction[env_ids] = (
             self.moving_pregrasp_stage[env_ids].float() / float(step_count)
         ) * final_fraction

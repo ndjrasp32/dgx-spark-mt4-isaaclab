@@ -67,6 +67,8 @@ FIELDS = [
     "mean_progressive_stage_weight",
     "mean_moving_pregrasp_fraction",
     "moving_pregrasp_final_rate",
+    "moving_pregrasp_step_ready_rate",
+    "mean_moving_pregrasp_hold_progress",
     "mean_moving_pregrasp_reward",
     "mean_final_insertion_reward",
     "mean_pregrasp_line_error",
@@ -258,6 +260,8 @@ def main() -> None:
         "mean_progressive_stage_weight": summary.get("mean_progressive_stage_weight", ""),
         "mean_moving_pregrasp_fraction": summary.get("mean_moving_pregrasp_fraction", ""),
         "moving_pregrasp_final_rate": summary.get("moving_pregrasp_final_rate", ""),
+        "moving_pregrasp_step_ready_rate": summary.get("moving_pregrasp_step_ready_rate", ""),
+        "mean_moving_pregrasp_hold_progress": summary.get("mean_moving_pregrasp_hold_progress", ""),
         "mean_moving_pregrasp_reward": summary.get("mean_moving_pregrasp_reward", ""),
         "mean_final_insertion_reward": summary.get("mean_final_insertion_reward", ""),
         "mean_pregrasp_line_error": summary.get("mean_pregrasp_line_error", ""),
@@ -339,6 +343,8 @@ def main() -> None:
                 f"| mean_progressive_stage_weight | {row['mean_progressive_stage_weight']} |",
                 f"| mean_moving_pregrasp_fraction | {row['mean_moving_pregrasp_fraction']} |",
                 f"| moving_pregrasp_final_rate | {row['moving_pregrasp_final_rate']} |",
+                f"| moving_pregrasp_step_ready_rate | {row['moving_pregrasp_step_ready_rate']} |",
+                f"| mean_moving_pregrasp_hold_progress | {row['mean_moving_pregrasp_hold_progress']} |",
                 f"| mean_moving_pregrasp_reward | {row['mean_moving_pregrasp_reward']} |",
                 f"| mean_final_insertion_reward | {row['mean_final_insertion_reward']} |",
                 f"| mean_pregrasp_line_error | {row['mean_pregrasp_line_error']} |",
@@ -394,6 +400,8 @@ def main() -> None:
     print(" progressive   =", row["mean_progressive_stage_weight"])
     print(" moving_frac   =", row["mean_moving_pregrasp_fraction"])
     print(" moving_final  =", row["moving_pregrasp_final_rate"])
+    print(" moving_step   =", row["moving_pregrasp_step_ready_rate"])
+    print(" moving_hold   =", row["mean_moving_pregrasp_hold_progress"])
     print(" moving_reward =", row["mean_moving_pregrasp_reward"])
     print(" final_insert  =", row["mean_final_insertion_reward"])
     print(" line_error    =", row["mean_pregrasp_line_error"])
