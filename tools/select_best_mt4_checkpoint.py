@@ -33,6 +33,7 @@ with CSV_PATH.open("r", encoding="utf-8") as f:
         row["_stage3_insertion_ready_rate"] = to_float(row.get("stage3_insertion_ready_rate"))
         row["_stage3_touch_ready_rate"] = to_float(row.get("stage3_touch_ready_rate"))
         row["_stage4_center_ready_rate"] = to_float(row.get("stage4_center_ready_rate"))
+        row["_stage4_push_ready_rate"] = to_float(row.get("stage4_push_ready_rate"))
         row["_mean_pregrasp_entry_distance"] = to_float(row.get("mean_pregrasp_entry_distance"))
         row["_mean_pregrasp_distance"] = to_float(row.get("mean_pregrasp_distance"))
         row["_mean_touch_error"] = to_float(row.get("mean_touch_error"))
@@ -43,6 +44,7 @@ with CSV_PATH.open("r", encoding="utf-8") as f:
         row["_mean_target_contact_penalty"] = to_float(row.get("mean_target_contact_penalty"))
         row["_mean_pregrasp_center_progress"] = to_float(row.get("mean_pregrasp_center_progress"))
         row["_mean_insertion_progress"] = to_float(row.get("mean_insertion_progress"))
+        row["_mean_center_push_progress"] = to_float(row.get("mean_center_push_progress"))
         row["_mean_best_target_center_distance"] = to_float(row.get("mean_best_target_center_distance"))
         row["_mean_target_center_improvement"] = to_float(row.get("mean_target_center_improvement"))
         row["_mean_pregrasp_line_error"] = to_float(row.get("mean_pregrasp_line_error"))
@@ -96,12 +98,14 @@ else:
                 stage3_ready = r["_stage3_insertion_ready_rate"] or 0.0
                 stage3_touch_ready = r["_stage3_touch_ready_rate"] or 0.0
                 stage4_center_ready = r["_stage4_center_ready_rate"] or 0.0
+                stage4_push_ready = r["_stage4_push_ready_rate"] or 0.0
                 alignment = r["_mean_alignment"] or 0.0
                 pregrasp_alignment = r["_mean_pregrasp_alignment"] or alignment
                 insertion_alignment = r["_mean_insertion_alignment"] or alignment
                 contact_penalty = r["_mean_target_contact_penalty"] or 0.0
                 center_progress = r["_mean_pregrasp_center_progress"] or 0.0
                 insertion_progress = r["_mean_insertion_progress"] or 0.0
+                center_push_progress = r["_mean_center_push_progress"] or 0.0
                 best_center_distance = r["_mean_best_target_center_distance"]
                 target_center_improvement = r["_mean_target_center_improvement"] or 0.0
                 line_error = r["_mean_pregrasp_line_error"] or 0.0
@@ -123,8 +127,10 @@ else:
                     +1.50 * stage3_ready
                     +2.50 * stage3_touch_ready
                     +5.00 * stage4_center_ready
+                    +1.40 * stage4_push_ready
                     +0.20 * center_progress
                     +0.10 * insertion_progress
+                    +0.35 * center_push_progress
                     +0.40 * target_center_improvement
                     -0.50 * (best_center_distance if best_center_distance is not None else distance)
                     +10.0 * success
@@ -176,6 +182,7 @@ print("stage2_ready  =", best.get("stage2_alignment_ready_rate"))
 print("stage3_ready  =", best.get("stage3_insertion_ready_rate"))
 print("stage3_touch  =", best.get("stage3_touch_ready_rate"))
 print("stage4_center =", best.get("stage4_center_ready_rate"))
+print("stage4_push   =", best.get("stage4_push_ready_rate"))
 print("entry_dist    =", best.get("mean_pregrasp_entry_distance"))
 print("pregrasp_dist =", best.get("mean_pregrasp_distance"))
 print("touch_error   =", best.get("mean_touch_error"))
@@ -185,6 +192,7 @@ print("pregrasp_align=", best.get("mean_pregrasp_alignment"))
 print("insert_align  =", best.get("mean_insertion_alignment"))
 print("contact_penalty=", best.get("mean_target_contact_penalty"))
 print("center_prog  =", best.get("mean_pregrasp_center_progress"))
+print("push_prog    =", best.get("mean_center_push_progress"))
 print("best_center  =", best.get("mean_best_target_center_distance"))
 print("center_impr  =", best.get("mean_target_center_improvement"))
 print("line_error   =", best.get("mean_pregrasp_line_error"))

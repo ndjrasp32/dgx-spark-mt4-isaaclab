@@ -37,6 +37,7 @@ FIELDS = [
     "stage3_insertion_ready_rate",
     "stage3_touch_ready_rate",
     "stage4_center_ready_rate",
+    "stage4_push_ready_rate",
     "mean_pregrasp_entry_distance",
     "mean_pregrasp_distance",
     "mean_gripper_center_pregrasp_distance",
@@ -48,6 +49,7 @@ FIELDS = [
     "mean_target_contact_penalty",
     "mean_pregrasp_center_progress",
     "mean_insertion_progress",
+    "mean_center_push_progress",
     "mean_best_target_center_distance",
     "mean_target_center_improvement",
     "mean_pregrasp_line_error",
@@ -209,6 +211,7 @@ def main() -> None:
         "stage3_insertion_ready_rate": summary.get("stage3_insertion_ready_rate", ""),
         "stage3_touch_ready_rate": summary.get("stage3_touch_ready_rate", ""),
         "stage4_center_ready_rate": summary.get("stage4_center_ready_rate", ""),
+        "stage4_push_ready_rate": summary.get("stage4_push_ready_rate", ""),
         "mean_pregrasp_entry_distance": summary.get("mean_pregrasp_entry_distance", ""),
         "mean_pregrasp_distance": summary.get("mean_pregrasp_distance", ""),
         "mean_gripper_center_pregrasp_distance": summary.get("mean_gripper_center_pregrasp_distance", ""),
@@ -220,6 +223,7 @@ def main() -> None:
         "mean_target_contact_penalty": summary.get("mean_target_contact_penalty", ""),
         "mean_pregrasp_center_progress": summary.get("mean_pregrasp_center_progress", ""),
         "mean_insertion_progress": summary.get("mean_insertion_progress", ""),
+        "mean_center_push_progress": summary.get("mean_center_push_progress", ""),
         "mean_best_target_center_distance": summary.get("mean_best_target_center_distance", ""),
         "mean_target_center_improvement": summary.get("mean_target_center_improvement", ""),
         "mean_pregrasp_line_error": summary.get("mean_pregrasp_line_error", ""),
@@ -274,6 +278,7 @@ def main() -> None:
                 f"| stage3_insertion_ready_rate | {row['stage3_insertion_ready_rate']} |",
                 f"| stage3_touch_ready_rate | {row['stage3_touch_ready_rate']} |",
                 f"| stage4_center_ready_rate | {row['stage4_center_ready_rate']} |",
+                f"| stage4_push_ready_rate | {row['stage4_push_ready_rate']} |",
                 f"| mean_pregrasp_entry_distance | {row['mean_pregrasp_entry_distance']} |",
                 f"| mean_pregrasp_distance | {row['mean_pregrasp_distance']} |",
                 f"| mean_gripper_center_pregrasp_distance | {row['mean_gripper_center_pregrasp_distance']} |",
@@ -282,6 +287,7 @@ def main() -> None:
                 f"| mean_insertion_alignment | {row['mean_insertion_alignment']} |",
                 f"| mean_target_contact_penalty | {row['mean_target_contact_penalty']} |",
                 f"| mean_pregrasp_center_progress | {row['mean_pregrasp_center_progress']} |",
+                f"| mean_center_push_progress | {row['mean_center_push_progress']} |",
                 f"| mean_best_target_center_distance | {row['mean_best_target_center_distance']} |",
                 f"| mean_target_center_improvement | {row['mean_target_center_improvement']} |",
                 f"| mean_pregrasp_line_error | {row['mean_pregrasp_line_error']} |",
@@ -316,10 +322,12 @@ def main() -> None:
     print(" stage3_ready  =", row["stage3_insertion_ready_rate"])
     print(" stage3_touch  =", row["stage3_touch_ready_rate"])
     print(" stage4_center =", row["stage4_center_ready_rate"])
+    print(" stage4_push   =", row["stage4_push_ready_rate"])
     print(" entry_dist    =", row["mean_pregrasp_entry_distance"])
     print(" pregrasp_dist =", row["mean_pregrasp_distance"])
     print(" touch_error   =", row["mean_touch_error"])
     print(" mean_distance =", row["mean_distance"])
+    print(" push_progress =", row["mean_center_push_progress"])
     print(" line_error    =", row["mean_pregrasp_line_error"])
 
 

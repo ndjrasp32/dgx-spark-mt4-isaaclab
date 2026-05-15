@@ -27,6 +27,7 @@ bash -n scripts/train_128_1000.sh \
   scripts/train_stage_b_insertion_128_500.sh \
   scripts/train_stage_b_replay_reset_128_500.sh \
   scripts/train_stage4_center_replay_128_300.sh \
+  scripts/train_stage4_center_push_replay_128_250.sh \
   scripts/train_stage4_center_visual_low_exploration_16_120.sh \
   scripts/copy_latest_training_video_lowres.sh \
   scripts/verify_before_push.sh

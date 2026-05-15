@@ -114,6 +114,7 @@ def checkpoint_summary(run_dir, ea, tags):
     stage3_ready_tag = find_tag(tags, ["mt4/stage3_insertion_ready_rate", "stage3_insertion_ready_rate"])
     stage3_touch_ready_tag = find_tag(tags, ["mt4/stage3_touch_ready_rate", "stage3_touch_ready_rate"])
     stage4_center_ready_tag = find_tag(tags, ["mt4/stage4_center_ready_rate", "stage4_center_ready_rate"])
+    stage4_push_ready_tag = find_tag(tags, ["mt4/stage4_push_ready_rate", "stage4_push_ready_rate"])
     pregrasp_entry_dist_tag = find_tag(tags, ["mt4/mean_pregrasp_entry_distance", "mean_pregrasp_entry_distance"])
     pregrasp_dist_tag = find_tag(tags, ["mt4/mean_pregrasp_distance", "mean_pregrasp_distance", "pregrasp_distance"])
     gripper_center_pregrasp_tag = find_tag(
@@ -130,6 +131,7 @@ def checkpoint_summary(run_dir, ea, tags):
     target_contact_tag = find_tag(tags, ["mt4/mean_target_contact_penalty", "mean_target_contact_penalty"])
     pregrasp_center_progress_tag = find_tag(tags, ["mt4/mean_pregrasp_center_progress", "mean_pregrasp_center_progress"])
     insertion_progress_tag = find_tag(tags, ["mt4/mean_insertion_progress", "mean_insertion_progress"])
+    center_push_progress_tag = find_tag(tags, ["mt4/mean_center_push_progress", "mean_center_push_progress"])
     best_center_dist_tag = find_tag(tags, ["mt4/mean_best_target_center_distance", "mean_best_target_center_distance"])
     center_improvement_tag = find_tag(tags, ["mt4/mean_target_center_improvement", "mean_target_center_improvement"])
     pregrasp_line_error_tag = find_tag(tags, ["mt4/mean_pregrasp_line_error", "mean_pregrasp_line_error"])
@@ -150,6 +152,7 @@ def checkpoint_summary(run_dir, ea, tags):
     print(" stage3_ready     =", stage3_ready_tag)
     print(" stage3_touch     =", stage3_touch_ready_tag)
     print(" stage4_center    =", stage4_center_ready_tag)
+    print(" stage4_push      =", stage4_push_ready_tag)
     print(" pregrasp_entry   =", pregrasp_entry_dist_tag)
     print(" pregrasp         =", pregrasp_dist_tag)
     print(" gripper_center   =", gripper_center_pregrasp_tag)
@@ -163,6 +166,7 @@ def checkpoint_summary(run_dir, ea, tags):
     print(" contact_penalty  =", target_contact_tag)
     print(" center_progress  =", pregrasp_center_progress_tag)
     print(" insertion_prog   =", insertion_progress_tag)
+    print(" center_push_prog =", center_push_progress_tag)
     print(" best_center_dist =", best_center_dist_tag)
     print(" center_improve   =", center_improvement_tag)
     print(" line_error       =", pregrasp_line_error_tag)
@@ -182,6 +186,7 @@ def checkpoint_summary(run_dir, ea, tags):
     s3x, s3y = get_series(ea, stage3_ready_tag)
     stx, sty = get_series(ea, stage3_touch_ready_tag)
     s4x, s4y = get_series(ea, stage4_center_ready_tag)
+    s4px, s4py = get_series(ea, stage4_push_ready_tag)
     pedx, pedy = get_series(ea, pregrasp_entry_dist_tag)
     pdx, pdy = get_series(ea, pregrasp_dist_tag)
     gcx, gcy = get_series(ea, gripper_center_pregrasp_tag)
@@ -195,6 +200,7 @@ def checkpoint_summary(run_dir, ea, tags):
     tcx, tcy = get_series(ea, target_contact_tag)
     pcpx, pcpy = get_series(ea, pregrasp_center_progress_tag)
     ipx, ipy = get_series(ea, insertion_progress_tag)
+    cppx, cppy = get_series(ea, center_push_progress_tag)
     bcdx, bcdy = get_series(ea, best_center_dist_tag)
     cix, ciy = get_series(ea, center_improvement_tag)
     plex, pley = get_series(ea, pregrasp_line_error_tag)
@@ -204,8 +210,9 @@ def checkpoint_summary(run_dir, ea, tags):
     # 자동 추정: scalar step이 iteration 번호인지 total step인지 판단
     max_ckpt_iter = max(parse_ckpt_iter(p) or 0 for p in ckpts)
     scalar_steps = (
-        sx + s1x + pesx + perx + pehx + psx + phx + phdx + s2px + s2x + s3x + stx + s4x + pedx + pdx + gcx
-        + tdx + tex + mdx + ilx + ax + pax + iax + tcx + pcpx + ipx + bcdx + cix + plex + mindx + rx
+        sx + s1x + pesx + perx + pehx + psx + phx + phdx + s2px + s2x + s3x + stx + s4x + s4px
+        + pedx + pdx + gcx + tdx + tex + mdx + ilx + ax + pax + iax + tcx + pcpx + ipx + cppx
+        + bcdx + cix + plex + mindx + rx
     )
     max_scalar_step = max(scalar_steps) if scalar_steps else 0
 
@@ -244,6 +251,7 @@ def checkpoint_summary(run_dir, ea, tags):
         s3s, s3v = nearest_value(s3x, s3y, target_step)
         sts, stv = nearest_value(stx, sty, target_step)
         s4s, s4v = nearest_value(s4x, s4y, target_step)
+        s4ps, s4pv = nearest_value(s4px, s4py, target_step)
         peds, pedv = nearest_value(pedx, pedy, target_step)
         ps, pv = nearest_value(pdx, pdy, target_step)
         gcs, gcv = nearest_value(gcx, gcy, target_step)
@@ -257,6 +265,7 @@ def checkpoint_summary(run_dir, ea, tags):
         tcs, tcv = nearest_value(tcx, tcy, target_step)
         pcps, pcpv = nearest_value(pcpx, pcpy, target_step)
         ips, ipv = nearest_value(ipx, ipy, target_step)
+        cpps, cppv = nearest_value(cppx, cppy, target_step)
         bcds, bcdv = nearest_value(bcdx, bcdy, target_step)
         cis, civ = nearest_value(cix, ciy, target_step)
         ples, plev = nearest_value(plex, pley, target_step)
@@ -281,6 +290,7 @@ def checkpoint_summary(run_dir, ea, tags):
             "stage3_insertion_ready_rate": s3v,
             "stage3_touch_ready_rate": stv,
             "stage4_center_ready_rate": s4v,
+            "stage4_push_ready_rate": s4pv,
             "mean_pregrasp_entry_distance": pedv,
             "mean_pregrasp_distance": pv,
             "mean_gripper_center_pregrasp_distance": gcv,
@@ -294,6 +304,7 @@ def checkpoint_summary(run_dir, ea, tags):
             "mean_target_contact_penalty": tcv,
             "mean_pregrasp_center_progress": pcpv,
             "mean_insertion_progress": ipv,
+            "mean_center_push_progress": cppv,
             "mean_best_target_center_distance": bcdv,
             "mean_target_center_improvement": civ,
             "mean_pregrasp_line_error": plev,
@@ -363,8 +374,8 @@ def main():
     plot_group(ea, tags, "alignment", ["alignment"])
     plot_group(ea, tags, "touch_error", ["touch_error", "touch_target"])
     plot_group(ea, tags, "insertion_lateral_error", ["insertion_lateral_error"])
-    plot_group(ea, tags, "stage", ["stage1", "stage2", "stage3", "stage4", "touch_ready", "insertion_progress", "pregrasp_success", "pregrasp_hold", "pregrasp_held", "pregrasp_entry", "center_progress"])
-    plot_group(ea, tags, "geometry", ["pregrasp_line_error", "pregrasp_entry_distance", "pregrasp_center_progress", "best_target_center", "target_center_improvement"])
+    plot_group(ea, tags, "stage", ["stage1", "stage2", "stage3", "stage4", "stage4_push", "touch_ready", "insertion_progress", "center_push_progress", "pregrasp_success", "pregrasp_hold", "pregrasp_held", "pregrasp_entry", "center_progress"])
+    plot_group(ea, tags, "geometry", ["pregrasp_line_error", "pregrasp_entry_distance", "pregrasp_center_progress", "center_push_progress", "best_target_center", "target_center_improvement"])
     plot_group(ea, tags, "safety", ["object_overlap", "target_contact", "body_target_clearance"])
     plot_group(ea, tags, "episode_length", ["episode_length", "length"])
 

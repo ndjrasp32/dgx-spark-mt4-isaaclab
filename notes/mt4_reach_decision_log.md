@@ -337,6 +337,34 @@
   - 하지만 작은 목표일수록 마지막 중심 정렬 난이도는 올라간다.
   - 후반 action std가 커져 마지막 중심을 지나치는 경향이 있으므로, 다음에는 stage4에서 exploration을 줄이는 설정이 필요하다.
 
+## 2026-05-15 stage 4 center-push reward
+
+- 선생님 의견:
+  - 마지막 중심 근처에 중심점이 잘 잡힌 상태라면, 거기서 멈추거나 맴돌지 말고 빨간 구체 중심 쪽으로 밀어 넣는 방향이 좋다.
+  - 최종적으로 집게를 움직여 잡기 전, 빨간 구체 중심이 집게 가운데에 정확히 들어와 있어야 한다.
+- Codex 제안:
+  - 마지막 단계에 `center_push_progress`를 추가해, pregrasp 지점에서 빨간 구체 중심 방향으로 들어가는 진행률을 측정한다.
+  - 이 보상은 insertion alignment와 lateral error 조건을 함께 만족할 때만 크게 주어, 아무 방향으로 밀어 넣는 행동을 막는다.
+  - 처음에는 `touch_targets -> targets` 진행률을 쓰려 했지만 보상이 너무 늦게 열려 거의 0으로 나왔다.
+  - 그래서 `pregrasp_targets -> targets` 전체 경로 기준 진행률로 바꾸었다.
+- 적용:
+  - `stage4_center_push_weight` 추가
+  - `stage4_push_ready_rate` 추가
+  - `mean_center_push_progress` 추가
+  - `scripts/train_stage4_center_push_replay_128_250.sh` 추가
+  - plot/select/record 도구에 center-push 지표 추가
+- 실행 결과:
+  - run은 `2026-05-15_12-55-21`, best checkpoint는 `model_950.pt`였다.
+  - `stage3_touch_ready_rate=0.828857421875`
+  - `stage4_push_ready_rate=0.729736328125`
+  - `mean_center_push_progress=0.5227710008621216`
+  - `stage4_center_ready_rate=0.0`, `success_rate=0.0`
+  - `mean_target_contact_penalty=0.0`으로 충돌 벌점은 발생하지 않았다.
+- 평가:
+  - 중심으로 밀어 넣는 중간 지표는 의미 있게 생겼다.
+  - 그러나 최종 중심 성공은 아직 나오지 않았다.
+  - 보상이 강해지면서 후반에는 touch/alignment가 일부 흔들렸으므로, 다음에는 push 보상과 자세 유지 보상을 더 강하게 결합하거나 stage4 replay state를 더 정밀한 위치에서 다시 수집하는 것이 좋다.
+
 ## 2026-05-15 stage 4 low-exploration visual run plan
 
 - 선생님 의견:
