@@ -49,6 +49,8 @@ with CSV_PATH.open("r", encoding="utf-8") as f:
         row["_mean_center_push_improvement"] = to_float(row.get("mean_center_push_improvement"))
         row["_mean_best_target_center_distance"] = to_float(row.get("mean_best_target_center_distance"))
         row["_mean_target_center_improvement"] = to_float(row.get("mean_target_center_improvement"))
+        row["_mean_target_center_shell_improvement"] = to_float(row.get("mean_target_center_shell_improvement"))
+        row["_mean_center_shortest_path_score"] = to_float(row.get("mean_center_shortest_path_score"))
         row["_mean_pregrasp_line_error"] = to_float(row.get("mean_pregrasp_line_error"))
         row["_mean_reward"] = to_float(row.get("mean_reward"))
         row["_primary_distance"] = row["_mean_pregrasp_distance"]
@@ -112,6 +114,8 @@ else:
                 center_push_improvement = r["_mean_center_push_improvement"] or 0.0
                 best_center_distance = r["_mean_best_target_center_distance"]
                 target_center_improvement = r["_mean_target_center_improvement"] or 0.0
+                target_center_shell_improvement = r["_mean_target_center_shell_improvement"] or 0.0
+                center_shortest_path_score = r["_mean_center_shortest_path_score"] or 0.0
                 line_error = r["_mean_pregrasp_line_error"] or 0.0
                 reward = r["_mean_reward"] or 0.0
                 return (
@@ -138,6 +142,8 @@ else:
                     +0.45 * best_center_push_progress
                     +0.30 * center_push_improvement
                     +0.40 * target_center_improvement
+                    +0.25 * target_center_shell_improvement
+                    +0.35 * center_shortest_path_score
                     -0.50 * (best_center_distance if best_center_distance is not None else distance)
                     +10.0 * success
                     -5.0 * contact_penalty
@@ -203,6 +209,8 @@ print("best_push    =", best.get("mean_best_center_push_progress"))
 print("push_impr    =", best.get("mean_center_push_improvement"))
 print("best_center  =", best.get("mean_best_target_center_distance"))
 print("center_impr  =", best.get("mean_target_center_improvement"))
+print("shell_impr   =", best.get("mean_target_center_shell_improvement"))
+print("shortest_path=", best.get("mean_center_shortest_path_score"))
 print("line_error   =", best.get("mean_pregrasp_line_error"))
 print("min_distance  =", best.get("min_distance"))
 print("mean_reward   =", best.get("mean_reward"))

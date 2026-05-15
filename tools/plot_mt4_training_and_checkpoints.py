@@ -140,6 +140,12 @@ def checkpoint_summary(run_dir, ea, tags):
     )
     best_center_dist_tag = find_tag(tags, ["mt4/mean_best_target_center_distance", "mean_best_target_center_distance"])
     center_improvement_tag = find_tag(tags, ["mt4/mean_target_center_improvement", "mean_target_center_improvement"])
+    center_shell_improvement_tag = find_tag(
+        tags, ["mt4/mean_target_center_shell_improvement", "mean_target_center_shell_improvement"]
+    )
+    center_shortest_path_tag = find_tag(
+        tags, ["mt4/mean_center_shortest_path_score", "mean_center_shortest_path_score"]
+    )
     pregrasp_line_error_tag = find_tag(tags, ["mt4/mean_pregrasp_line_error", "mean_pregrasp_line_error"])
     min_dist_tag = find_tag(tags, ["mt4/min_distance", "min_distance"])
     reward_tag = find_tag(tags, ["Train/mean_reward", "mean_reward", "reward"])
@@ -177,6 +183,8 @@ def checkpoint_summary(run_dir, ea, tags):
     print(" push_improve     =", center_push_improvement_tag)
     print(" best_center_dist =", best_center_dist_tag)
     print(" center_improve   =", center_improvement_tag)
+    print(" shell_improve    =", center_shell_improvement_tag)
+    print(" shortest_path    =", center_shortest_path_tag)
     print(" line_error       =", pregrasp_line_error_tag)
     print(" min_dist         =", min_dist_tag)
     print(" reward           =", reward_tag)
@@ -213,6 +221,8 @@ def checkpoint_summary(run_dir, ea, tags):
     cpix, cpiy = get_series(ea, center_push_improvement_tag)
     bcdx, bcdy = get_series(ea, best_center_dist_tag)
     cix, ciy = get_series(ea, center_improvement_tag)
+    csix, csiy = get_series(ea, center_shell_improvement_tag)
+    cspx, cspy = get_series(ea, center_shortest_path_tag)
     plex, pley = get_series(ea, pregrasp_line_error_tag)
     mindx, mindy = get_series(ea, min_dist_tag)
     rx, ry = get_series(ea, reward_tag)
@@ -222,7 +232,7 @@ def checkpoint_summary(run_dir, ea, tags):
     scalar_steps = (
         sx + s1x + pesx + perx + pehx + psx + phx + phdx + s2px + s2x + s3x + stx + s4x + s4px
         + pedx + pdx + gcx + tdx + tex + mdx + ilx + ax + pax + iax + tcx + pcpx + ipx + cppx
-        + bcppx + cpix + bcdx + cix + plex + mindx + rx
+        + bcppx + cpix + bcdx + cix + csix + cspx + plex + mindx + rx
     )
     max_scalar_step = max(scalar_steps) if scalar_steps else 0
 
@@ -280,6 +290,8 @@ def checkpoint_summary(run_dir, ea, tags):
         cpis, cpiv = nearest_value(cpix, cpiy, target_step)
         bcds, bcdv = nearest_value(bcdx, bcdy, target_step)
         cis, civ = nearest_value(cix, ciy, target_step)
+        csis, csiv = nearest_value(csix, csiy, target_step)
+        csps, cspv = nearest_value(cspx, cspy, target_step)
         ples, plev = nearest_value(plex, pley, target_step)
         mins, minv = nearest_value(mindx, mindy, target_step)
         rs, rv = nearest_value(rx, ry, target_step)
@@ -321,6 +333,8 @@ def checkpoint_summary(run_dir, ea, tags):
             "mean_center_push_improvement": cpiv,
             "mean_best_target_center_distance": bcdv,
             "mean_target_center_improvement": civ,
+            "mean_target_center_shell_improvement": csiv,
+            "mean_center_shortest_path_score": cspv,
             "mean_pregrasp_line_error": plev,
             "min_distance": minv,
             "mean_reward": rv,
@@ -388,8 +402,8 @@ def main():
     plot_group(ea, tags, "alignment", ["alignment"])
     plot_group(ea, tags, "touch_error", ["touch_error", "touch_target"])
     plot_group(ea, tags, "insertion_lateral_error", ["insertion_lateral_error"])
-    plot_group(ea, tags, "stage", ["stage1", "stage2", "stage3", "stage4", "stage4_push", "touch_ready", "insertion_progress", "center_push_progress", "best_center_push", "center_push_improvement", "pregrasp_success", "pregrasp_hold", "pregrasp_held", "pregrasp_entry", "center_progress"])
-    plot_group(ea, tags, "geometry", ["pregrasp_line_error", "pregrasp_entry_distance", "pregrasp_center_progress", "center_push_progress", "best_center_push", "center_push_improvement", "best_target_center", "target_center_improvement"])
+    plot_group(ea, tags, "stage", ["stage1", "stage2", "stage3", "stage4", "stage4_push", "touch_ready", "insertion_progress", "center_push_progress", "best_center_push", "center_push_improvement", "target_center_shell", "center_shortest_path", "pregrasp_success", "pregrasp_hold", "pregrasp_held", "pregrasp_entry", "center_progress"])
+    plot_group(ea, tags, "geometry", ["pregrasp_line_error", "pregrasp_entry_distance", "pregrasp_center_progress", "center_push_progress", "best_center_push", "center_push_improvement", "best_target_center", "target_center_improvement", "target_center_shell", "center_shortest_path"])
     plot_group(ea, tags, "safety", ["object_overlap", "target_contact", "body_target_clearance"])
     plot_group(ea, tags, "episode_length", ["episode_length", "length"])
 

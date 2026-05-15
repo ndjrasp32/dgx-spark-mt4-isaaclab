@@ -395,6 +395,41 @@
   - 하지만 마지막 성공률은 여전히 매우 낮다.
   - 이제 병목은 push 자체보다, push 중 lateral error와 중심 거리 정밀도를 동시에 유지하는 것이다.
 
+## 2026-05-15 stage 4 shortest-path reward idea
+
+- 선생님 의견:
+  - 마지막 stage 보상을 다변화한다.
+  - 최단거리 방향으로 빨간 구체 중심에 가까워지는 경우에는 보상을 크게 준다.
+  - 돌아가며 가까워지는 경우에는 보상을 작게 준다.
+  - 동일한 거리권의 보상은 한 번 달성하면 사라지게 해서, 같은 거리에서 맴도는 행동을 줄인다.
+- Codex 제안:
+  - 기존 `best_target_center_distance`는 이미 "이전보다 더 가까워질 때만 보상"하는 역할을 한다.
+  - 여기에 `center_shortest_path_score`를 곱해, insertion line과 gripper alignment를 지키는 접근일수록 보상을 크게 만든다.
+  - 빨간 구체 중심으로부터의 거리를 5mm shell로 나누고, 더 안쪽 shell로 들어갈 때만 `target_center_shell_improvement`를 준다.
+- 적용:
+  - `stage4_shortest_path_weight` 추가
+  - `stage4_distance_shell_weight` 추가
+  - `center_distance_shell_size` 추가
+  - `mean_target_center_shell_improvement` 추가
+  - `mean_center_shortest_path_score` 추가
+- 평가 예정:
+  - 다음 학습에서는 `mean_center_shortest_path_score`, `mean_target_center_shell_improvement`, `stage4_center_ready_rate`를 함께 본다.
+  - 성공률이 바로 오르지 않더라도, 같은 거리권에서 맴도는 행동이 줄고 더 안쪽 shell로 들어가는 빈도가 늘면 개선으로 본다.
+- 실행 결과:
+  - run은 `2026-05-15_13-31-34`, best checkpoint는 `model_1548.pt`였다.
+  - `stage3_touch_ready_rate=0.820556640625`
+  - `stage4_center_ready_rate=0.000244140625`, `success_rate=0.000244140625`
+  - `stage4_push_ready_rate=0.133544921875`
+  - `mean_center_push_progress=0.5709028840065002`
+  - `mean_target_center_shell_improvement=0.011962890625`
+  - `mean_center_shortest_path_score=0.6540575623512268`
+  - `mean_target_contact_penalty=0.0`
+- 평가:
+  - 최단거리/shell 보상은 실제 로그에 잡혔다.
+  - 정책은 무조건 깊게 밀기보다 경로와 정렬을 더 유지하는 방향으로 바뀌었다.
+  - 단점은 push-ready와 push progress가 이전 strong-push보다 낮아졌다는 점이다.
+  - 다음은 shortest-path 구조를 유지하되 마지막 push depth를 다시 조금 올리는 혼합형이 좋다.
+
 ## 2026-05-15 stage 4 low-exploration visual run plan
 
 - 선생님 의견:

@@ -54,6 +54,8 @@ FIELDS = [
     "mean_center_push_improvement",
     "mean_best_target_center_distance",
     "mean_target_center_improvement",
+    "mean_target_center_shell_improvement",
+    "mean_center_shortest_path_score",
     "mean_pregrasp_line_error",
     "min_distance",
     "mean_reward",
@@ -230,6 +232,8 @@ def main() -> None:
         "mean_center_push_improvement": summary.get("mean_center_push_improvement", ""),
         "mean_best_target_center_distance": summary.get("mean_best_target_center_distance", ""),
         "mean_target_center_improvement": summary.get("mean_target_center_improvement", ""),
+        "mean_target_center_shell_improvement": summary.get("mean_target_center_shell_improvement", ""),
+        "mean_center_shortest_path_score": summary.get("mean_center_shortest_path_score", ""),
         "mean_pregrasp_line_error": summary.get("mean_pregrasp_line_error", ""),
         "min_distance": summary.get("min_distance", ""),
         "mean_reward": summary.get("mean_reward", ""),
@@ -296,6 +300,8 @@ def main() -> None:
                 f"| mean_center_push_improvement | {row['mean_center_push_improvement']} |",
                 f"| mean_best_target_center_distance | {row['mean_best_target_center_distance']} |",
                 f"| mean_target_center_improvement | {row['mean_target_center_improvement']} |",
+                f"| mean_target_center_shell_improvement | {row['mean_target_center_shell_improvement']} |",
+                f"| mean_center_shortest_path_score | {row['mean_center_shortest_path_score']} |",
                 f"| mean_pregrasp_line_error | {row['mean_pregrasp_line_error']} |",
                 "",
                 "## Interpretation",
@@ -336,6 +342,8 @@ def main() -> None:
     print(" push_progress =", row["mean_center_push_progress"])
     print(" best_push     =", row["mean_best_center_push_progress"])
     print(" push_improve  =", row["mean_center_push_improvement"])
+    print(" shell_improve =", row["mean_target_center_shell_improvement"])
+    print(" shortest_path =", row["mean_center_shortest_path_score"])
     print(" line_error    =", row["mean_pregrasp_line_error"])
 
 
