@@ -21,18 +21,25 @@ bash -n scripts/train_128_1000.sh \
   scripts/kill_isaac_processes.sh \
   scripts/record_experiment_result.sh \
   scripts/tensorboard_mt4.sh \
+  scripts/collect_pregrasp_states.sh \
+  scripts/collect_stage4_center_states.sh \
   scripts/train_visual_16_300.sh \
   scripts/train_stage_b_insertion_128_500.sh \
+  scripts/train_stage_b_replay_reset_128_500.sh \
+  scripts/train_stage4_center_replay_128_300.sh \
+  scripts/train_stage4_center_visual_low_exploration_16_120.sh \
+  scripts/copy_latest_training_video_lowres.sh \
   scripts/verify_before_push.sh
 
 echo "[INFO] Checking Python syntax..."
 "${ISAACLAB_DIR}/isaaclab.sh" -p -m py_compile "${PROJECT_DIR}/tools/record_mt4_experiment.py"
 "${ISAACLAB_DIR}/isaaclab.sh" -p -m py_compile "${PROJECT_DIR}/tools/plot_mt4_training_and_checkpoints.py"
 "${ISAACLAB_DIR}/isaaclab.sh" -p -m py_compile "${PROJECT_DIR}/tools/select_best_mt4_checkpoint.py"
+"${ISAACLAB_DIR}/isaaclab.sh" -p -m py_compile "${PROJECT_DIR}/tools/collect_mt4_pregrasp_states.py"
 "${ISAACLAB_DIR}/isaaclab.sh" -p -m py_compile "${PROJECT_DIR}/source/mt4_reach_direct/mt4_reach_env.py"
 
 echo "[INFO] Running plot/select smoke test..."
-scripts/plot_and_select_best.sh
+MT4_SKIP_PLOT_SNAPSHOT=1 scripts/plot_and_select_best.sh
 
 if [[ ! -s "${BEST_FILE}" ]]; then
   echo "[ERROR] best_checkpoint.txt was not created or is empty."

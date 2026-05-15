@@ -179,3 +179,20 @@ best: model_800.pt
 - Stage-B reward profile은 빨간 공 표면 근처로 더 가까워지는 데 도움이 되었다.
 - 하지만 안정적인 성공률로 이어지지는 않았다.
 - 다음 개선은 reward 가중치만 더 키우는 것이 아니라, Stage-B가 실제로 pregrasp 근처에서 시작하도록 reset/curriculum을 설계하는 것이다.
+
+## 9. Curriculum Reset 추가
+
+Stage-B가 마지막 삽입 동작을 더 자주 연습하도록 pregrasp replay reset을 추가합니다. 자세한 이유와 수업용 설명은 `notes/mt4_reach_curriculum_reset_plan.md`에 따로 정리했습니다.
+
+핵심은 다음입니다.
+
+1. Policy A를 실행하면서 좋은 pregrasp 순간의 관절 상태와 target 위치를 저장한다.
+2. Stage-B 학습 reset 때 일부 episode를 그 저장 상태에서 시작한다.
+3. 작은 noise를 넣어 특정 자세를 외우는 것이 아니라 비슷한 상황에 적응하게 한다.
+
+새 스크립트:
+
+```bash
+~/work/robotarm/mt4_isaac_lab_task/scripts/collect_pregrasp_states.sh
+~/work/robotarm/mt4_isaac_lab_task/scripts/train_stage_b_replay_reset_128_500.sh --seed 42
+```

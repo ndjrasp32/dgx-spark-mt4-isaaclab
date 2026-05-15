@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+from pathlib import Path
 
 import torch
 
@@ -31,6 +32,7 @@ class MT4ReachEnvCfg(DirectRLEnvCfg):
     # "integrated" keeps the original staged reach reward. "stage_b_insertion" is a
     # curriculum profile used after the approach/pregrasp policy already works.
     training_mode = "integrated"
+    reset_mode = "default"
 
     # physics
     sim: sim_utils.SimulationCfg = sim_utils.SimulationCfg(
@@ -87,7 +89,7 @@ class MT4ReachEnvCfg(DirectRLEnvCfg):
         prim_path="/Visuals/MT4ReachTargets",
         markers={
             "target": sim_utils.SphereCfg(
-                radius=0.035,
+                radius=0.025,
                 visual_material=sim_utils.PreviewSurfaceCfg(
                     diffuse_color=(1.0, 0.05, 0.05),
                     emissive_color=(0.25, 0.0, 0.0),
@@ -101,7 +103,7 @@ class MT4ReachEnvCfg(DirectRLEnvCfg):
         prim_path="/Visuals/MT4ReachSuccess",
         markers={
             "success": sim_utils.SphereCfg(
-                radius=0.045,
+                radius=0.035,
                 visual_material=sim_utils.PreviewSurfaceCfg(
                     diffuse_color=(0.05, 1.0, 0.05),
                     emissive_color=(0.0, 0.35, 0.0),
@@ -133,13 +135,26 @@ class MT4ReachEnvCfg(DirectRLEnvCfg):
     min_target_base_radius = 0.18
 
     # simplified pre-grasp geometry
+    gripper_center_offset_b = (0.158, 0.0, 0.0)
     gripper_tip_offset_b = (0.166, 0.0, 0.0)
     gripper_forward_axis_b = (1.0, 0.0, 0.0)
-    target_radius = 0.035
-    desired_touch_distance = 0.040
+    target_radius = 0.025
+    desired_touch_distance = 0.030
     touch_success_band = 0.045
     pregrasp_standoff = 0.080
-    pregrasp_success_radius = 0.095
+    pregrasp_horizontal_offset = 0.075
+    pregrasp_vertical_offset = 0.075
+    pregrasp_entry_offset = 0.030
+    pregrasp_entry_success_radius = 0.110
+    pregrasp_entry_hold_radius = 0.085
+    pregrasp_success_radius = 0.120
+    pregrasp_hold_radius = 0.080
+    pregrasp_hold_velocity_scale = 0.08
+    pregrasp_hold_min_stability = 0.45
+    stage3_insertion_start_progress = 0.10
+    stage3_insertion_success_progress = 0.55
+    final_center_success_radius = 0.025
+    final_center_improvement_scale = 0.010
     approach_horizontal_weight = 1.0
     approach_down_weight = 1.0
     min_object_clearance = 0.035
@@ -149,16 +164,22 @@ class MT4ReachEnvCfg(DirectRLEnvCfg):
     insertion_alignment_success = 0.70
 
     # staged reward weights for classroom tuning
-    stage1_alignment_weight = 3.4
-    stage1_wrong_way_weight = 1.0
-    stage2_pregrasp_weight = 3.8
-    stage2_touch_weight = 2.4
-    stage2_hold_weight = 1.0
-    stage3_line_weight = 3.4
-    stage3_touch_weight = 5.0
-    stage3_progress_weight = 3.0
-    stage3_depth_weight = 5.0
-    pregrasp_bonus_weight = 1.2
+    stage1_alignment_weight = 1.6
+    stage1_wrong_way_weight = 1.2
+    stage2_entry_weight = 5.0
+    stage2_entry_touch_weight = 3.0
+    stage2_pregrasp_weight = 8.0
+    stage2_touch_weight = 5.0
+    stage2_hold_weight = 3.0
+    stage2_center_progress_weight = 2.0
+    stage3_line_weight = 2.4
+    stage3_touch_weight = 7.0
+    stage3_progress_weight = 6.0
+    stage3_depth_weight = 8.0
+    stage3_slow_weight = 0.8
+    stage4_center_improvement_weight = 24.0
+    stage4_center_precision_weight = 10.0
+    pregrasp_bonus_weight = 2.5
     success_bonus_weight = 18.0
     target_contact_penalty_weight = 70.0
     wrong_way_penalty_weight = 0.8
@@ -166,12 +187,20 @@ class MT4ReachEnvCfg(DirectRLEnvCfg):
     joint_velocity_penalty_weight = 0.0004
     time_penalty_weight = 0.004
 
+    # pregrasp replay reset curriculum
+    pregrasp_replay_state_file = "/home/spark-robotics/work/robotarm/mt4_isaac_lab_task/data/pregrasp_states/latest.pt"
+    pregrasp_replay_probability = 0.75
+    pregrasp_replay_joint_noise = 0.025
+    pregrasp_replay_target_noise = 0.004
+    pregrasp_replay_joint_velocity_scale = 0.25
+
 
 class MT4ReachEnv(DirectRLEnv):
     cfg: MT4ReachEnvCfg
 
     def __init__(self, cfg: MT4ReachEnvCfg, render_mode: str | None = None, **kwargs):
         self.training_mode = self._apply_training_mode_cfg(cfg)
+        self.reset_mode = self._apply_reset_mode_cfg(cfg)
         super().__init__(cfg, render_mode, **kwargs)
 
         self.joint_names = ["base_yaw", "shoulder", "elbow", "wrist_pitch", "gripper_pitch"]
@@ -195,18 +224,22 @@ class MT4ReachEnv(DirectRLEnv):
         self.pregrasp_markers = VisualizationMarkers(self.cfg.pregrasp_marker_cfg)
 
         self.wrist_pos = torch.zeros((self.num_envs, 3), device=self.device)
+        self.gripper_center_pos = torch.zeros((self.num_envs, 3), device=self.device)
         self.gripper_tip_pos = torch.zeros((self.num_envs, 3), device=self.device)
         self.gripper_forward = torch.zeros((self.num_envs, 3), device=self.device)
         self.approach_dir = torch.zeros((self.num_envs, 3), device=self.device)
         self.desired_gripper_dir = torch.zeros((self.num_envs, 3), device=self.device)
         self.desired_pregrasp_dir = torch.zeros((self.num_envs, 3), device=self.device)
         self.desired_insertion_dir = torch.zeros((self.num_envs, 3), device=self.device)
+        self.pregrasp_entry_targets = torch.zeros((self.num_envs, 3), device=self.device)
         self.pregrasp_targets = torch.zeros((self.num_envs, 3), device=self.device)
         self.touch_targets = torch.zeros((self.num_envs, 3), device=self.device)
         self.to_target = torch.zeros((self.num_envs, 3), device=self.device)
+        self.to_pregrasp_entry = torch.zeros((self.num_envs, 3), device=self.device)
         self.to_pregrasp = torch.zeros((self.num_envs, 3), device=self.device)
         self.to_touch = torch.zeros((self.num_envs, 3), device=self.device)
         self.distance = torch.zeros((self.num_envs,), device=self.device)
+        self.pregrasp_entry_distance = torch.zeros((self.num_envs,), device=self.device)
         self.pregrasp_distance = torch.zeros((self.num_envs,), device=self.device)
         self.touch_target_distance = torch.zeros((self.num_envs,), device=self.device)
         self.insertion_lateral_error = torch.zeros((self.num_envs,), device=self.device)
@@ -218,7 +251,14 @@ class MT4ReachEnv(DirectRLEnv):
         self.object_overlap = torch.zeros((self.num_envs,), device=self.device)
         self.body_target_clearance_error = torch.zeros((self.num_envs,), device=self.device)
         self.target_contact_penalty = torch.zeros((self.num_envs,), device=self.device)
+        self.pregrasp_center_progress = torch.zeros((self.num_envs,), device=self.device)
         self.insertion_progress = torch.zeros((self.num_envs,), device=self.device)
+        self.best_target_center_distance = torch.full((self.num_envs,), 10.0, device=self.device)
+        self.target_center_improvement = torch.zeros((self.num_envs,), device=self.device)
+        self.pregrasp_line_error = torch.zeros((self.num_envs,), device=self.device)
+        self.pregrasp_entry_reached = torch.zeros((self.num_envs,), dtype=torch.bool, device=self.device)
+        self.pregrasp_held = torch.zeros((self.num_envs,), dtype=torch.bool, device=self.device)
+        self.pregrasp_replay_states: dict[str, torch.Tensor] | None = self._load_pregrasp_replay_states()
 
         self._sample_targets(torch.arange(self.num_envs, device=self.device))
 
@@ -237,18 +277,27 @@ class MT4ReachEnv(DirectRLEnv):
             cfg.target_x_range = (0.22, 0.30)
             cfg.target_y_range = (-0.10, 0.10)
             cfg.target_z_range = (0.10, 0.16)
-            cfg.pregrasp_success_radius = 0.110
+            cfg.pregrasp_entry_success_radius = 0.100
+            cfg.pregrasp_entry_hold_radius = 0.080
+            cfg.pregrasp_success_radius = 0.120
+            cfg.pregrasp_hold_radius = 0.080
             cfg.success_radius = 0.065
             cfg.touch_success_band = 0.055
-            cfg.stage1_alignment_weight = 2.4
-            cfg.stage1_wrong_way_weight = 0.8
-            cfg.stage2_pregrasp_weight = 2.0
-            cfg.stage2_touch_weight = 1.2
-            cfg.stage2_hold_weight = 0.6
-            cfg.stage3_line_weight = 4.8
-            cfg.stage3_touch_weight = 7.0
-            cfg.stage3_progress_weight = 5.5
-            cfg.stage3_depth_weight = 9.0
+            cfg.stage1_alignment_weight = 1.2
+            cfg.stage1_wrong_way_weight = 1.0
+            cfg.stage2_entry_weight = 4.0
+            cfg.stage2_entry_touch_weight = 2.0
+            cfg.stage2_pregrasp_weight = 6.0
+            cfg.stage2_touch_weight = 4.0
+            cfg.stage2_hold_weight = 3.0
+            cfg.stage2_center_progress_weight = 3.0
+            cfg.stage3_line_weight = 2.8
+            cfg.stage3_touch_weight = 10.0
+            cfg.stage3_progress_weight = 9.0
+            cfg.stage3_depth_weight = 12.0
+            cfg.stage3_slow_weight = 1.2
+            cfg.stage4_center_improvement_weight = 36.0
+            cfg.stage4_center_precision_weight = 14.0
             cfg.pregrasp_bonus_weight = 0.5
             cfg.success_bonus_weight = 28.0
             cfg.target_contact_penalty_weight = 100.0
@@ -256,11 +305,116 @@ class MT4ReachEnv(DirectRLEnv):
             cfg.time_penalty_weight = 0.006
             return "stage_b_insertion"
 
+        if mode in ("stage4", "stage4_center", "final_center"):
+            # Stage 4 starts from near-insertion replay states and concentrates
+            # the reward signal on placing the target center between the gripper tips.
+            cfg.target_x_range = (0.22, 0.30)
+            cfg.target_y_range = (-0.10, 0.10)
+            cfg.target_z_range = (0.10, 0.16)
+            cfg.pregrasp_entry_success_radius = 0.110
+            cfg.pregrasp_entry_hold_radius = 0.090
+            cfg.pregrasp_success_radius = 0.120
+            cfg.pregrasp_hold_radius = 0.085
+            cfg.success_radius = 0.065
+            cfg.touch_success_band = 0.060
+            cfg.stage3_insertion_start_progress = 0.10
+            cfg.action_scale = float(os.environ.get("MT4_REACH_ACTION_SCALE", "0.030"))
+            cfg.final_center_success_radius = float(
+                os.environ.get("MT4_REACH_FINAL_CENTER_RADIUS", "0.035")
+            )
+            cfg.final_center_improvement_scale = float(
+                os.environ.get("MT4_REACH_FINAL_CENTER_IMPROVEMENT_SCALE", "0.006")
+            )
+            cfg.stage1_alignment_weight = 0.8
+            cfg.stage1_wrong_way_weight = 1.0
+            cfg.stage2_entry_weight = 2.0
+            cfg.stage2_entry_touch_weight = 1.0
+            cfg.stage2_pregrasp_weight = 3.0
+            cfg.stage2_touch_weight = 2.0
+            cfg.stage2_hold_weight = 2.0
+            cfg.stage2_center_progress_weight = 2.0
+            cfg.stage3_line_weight = 3.2
+            cfg.stage3_touch_weight = 12.0
+            cfg.stage3_progress_weight = 8.0
+            cfg.stage3_depth_weight = 12.0
+            cfg.stage3_slow_weight = 1.4
+            cfg.stage4_center_improvement_weight = 64.0
+            cfg.stage4_center_precision_weight = 32.0
+            cfg.pregrasp_bonus_weight = 0.2
+            cfg.success_bonus_weight = 48.0
+            cfg.target_contact_penalty_weight = 120.0
+            cfg.action_penalty_weight = float(os.environ.get("MT4_REACH_ACTION_PENALTY", "0.018"))
+            cfg.time_penalty_weight = 0.003
+            return "stage4_center"
+
         raise ValueError(
             "Unsupported MT4_REACH_TRAINING_MODE. "
-            "Use 'integrated' or 'stage_b_insertion'. "
+            "Use 'integrated', 'stage_b_insertion', or 'stage4_center'. "
             f"Received: {mode!r}"
         )
+
+    @staticmethod
+    def _apply_reset_mode_cfg(cfg: MT4ReachEnvCfg) -> str:
+        mode = os.environ.get("MT4_REACH_RESET_MODE", cfg.reset_mode).strip().lower()
+        cfg.reset_mode = mode
+
+        if mode in ("", "default", "folded"):
+            return "default"
+
+        if mode in ("pregrasp_replay", "replay"):
+            cfg.pregrasp_replay_state_file = os.environ.get(
+                "MT4_REACH_PREGRASP_STATE_FILE", cfg.pregrasp_replay_state_file
+            )
+            cfg.pregrasp_replay_probability = float(
+                os.environ.get("MT4_REACH_REPLAY_PROB", str(cfg.pregrasp_replay_probability))
+            )
+            cfg.pregrasp_replay_joint_noise = float(
+                os.environ.get("MT4_REACH_REPLAY_JOINT_NOISE", str(cfg.pregrasp_replay_joint_noise))
+            )
+            cfg.pregrasp_replay_target_noise = float(
+                os.environ.get("MT4_REACH_REPLAY_TARGET_NOISE", str(cfg.pregrasp_replay_target_noise))
+            )
+            cfg.pregrasp_replay_joint_velocity_scale = float(
+                os.environ.get(
+                    "MT4_REACH_REPLAY_JOINT_VELOCITY_SCALE",
+                    str(cfg.pregrasp_replay_joint_velocity_scale),
+                )
+            )
+            return "pregrasp_replay"
+
+        raise ValueError(
+            "Unsupported MT4_REACH_RESET_MODE. "
+            "Use 'default' or 'pregrasp_replay'. "
+            f"Received: {mode!r}"
+        )
+
+    def _load_pregrasp_replay_states(self) -> dict[str, torch.Tensor] | None:
+        if self.reset_mode != "pregrasp_replay":
+            return None
+
+        path = Path(self.cfg.pregrasp_replay_state_file).expanduser()
+        if not path.is_file():
+            raise FileNotFoundError(
+                "MT4 pregrasp replay reset was requested, but the state file does not exist:\n"
+                f"  {path}\n"
+                "Run scripts/collect_pregrasp_states.sh first, or set MT4_REACH_PREGRASP_STATE_FILE."
+            )
+
+        data = torch.load(path, map_location="cpu", weights_only=False)
+        required = ("joint_pos", "joint_vel", "targets")
+        missing = [key for key in required if key not in data]
+        if missing:
+            raise ValueError(f"Invalid pregrasp replay state file: missing keys {missing} in {path}")
+
+        states = {key: data[key].to(device=self.device, dtype=torch.float32) for key in required}
+        if states["joint_pos"].ndim != 2 or states["joint_pos"].shape[1] != len(self.joint_names):
+            raise ValueError(f"Invalid joint_pos shape in {path}: expected [N, {len(self.joint_names)}]")
+        if states["targets"].ndim != 2 or states["targets"].shape[1] != 3:
+            raise ValueError(f"Invalid targets shape in {path}: expected [N, 3]")
+        if states["joint_pos"].shape[0] == 0:
+            raise ValueError(f"No pregrasp replay states in {path}")
+
+        return states
 
     def _setup_scene(self):
         self.robot = Articulation(self.cfg.robot_cfg)
@@ -313,27 +467,79 @@ class MT4ReachEnv(DirectRLEnv):
 
         insertion_alignment_reward = torch.clamp(0.5 * (self.insertion_alignment + 1.0), min=0.0, max=1.0)
         alignment_gate = torch.clamp((self.insertion_alignment - 0.10) / 0.90, min=0.0, max=1.0)
+        pregrasp_entry_reward = 1.0 / (1.0 + 55.0 * self.pregrasp_entry_distance * self.pregrasp_entry_distance)
+        pregrasp_entry_touch_reward = torch.exp(-650.0 * self.pregrasp_entry_distance * self.pregrasp_entry_distance)
         pregrasp_reward = 1.0 / (1.0 + 55.0 * self.pregrasp_distance * self.pregrasp_distance)
         pregrasp_touch_reward = torch.exp(-650.0 * self.pregrasp_distance * self.pregrasp_distance)
-        pregrasp_gate = torch.exp(-120.0 * self.pregrasp_distance * self.pregrasp_distance)
+        pregrasp_center_progress_reward = torch.clamp(self.pregrasp_center_progress, min=0.0, max=1.0)
         wrong_way_penalty = torch.clamp(-self.insertion_alignment, min=0.0)
-        stage3_gate = alignment_gate * pregrasp_gate
         touch_ready_reward = torch.exp(-360.0 * self.touch_target_distance * self.touch_target_distance)
         touch_depth_reward = 1.0 / (1.0 + 220.0 * self.touch_error * self.touch_error)
         insertion_line_reward = torch.exp(-520.0 * self.insertion_lateral_error * self.insertion_lateral_error)
+        insertion_progress_reward = torch.clamp(self.insertion_progress, min=0.0, max=1.0)
+        center_precision_reward = torch.exp(-900.0 * self.distance * self.distance)
         action_penalty = torch.sum(self.actions * self.actions, dim=-1)
         joint_vel = self.robot.data.joint_vel[:, self.joint_ids]
         joint_velocity_penalty = torch.sum(joint_vel * joint_vel, dim=-1)
+        hold_stability_reward = torch.exp(-self.cfg.pregrasp_hold_velocity_scale * joint_velocity_penalty)
+        insertion_slow_reward = torch.exp(-0.04 * joint_velocity_penalty) * insertion_progress_reward
+        pregrasp_hold_reward = (
+            pregrasp_touch_reward
+            * insertion_alignment_reward
+            * hold_stability_reward
+        )
+        pregrasp_entry_ready = (
+            (self.pregrasp_entry_distance < self.cfg.pregrasp_entry_hold_radius)
+            & (self.insertion_alignment > self.cfg.insertion_alignment_success)
+            & (hold_stability_reward > self.cfg.pregrasp_hold_min_stability)
+        )
+        self.pregrasp_entry_reached = self.pregrasp_entry_reached | pregrasp_entry_ready
+        pregrasp_hold_ready = (
+            (self.pregrasp_distance < self.cfg.pregrasp_hold_radius)
+            & self.pregrasp_entry_reached
+            & (self.insertion_alignment > self.cfg.insertion_alignment_success)
+            & (hold_stability_reward > self.cfg.pregrasp_hold_min_stability)
+        )
+        self.pregrasp_held = self.pregrasp_held | pregrasp_hold_ready
         time_fraction = self.episode_length_buf.float() / max(float(self.max_episode_length), 1.0)
+        pregrasp_entry_success = self.pregrasp_entry_distance < self.cfg.pregrasp_entry_success_radius
         pregrasp_success = self.pregrasp_distance < self.cfg.pregrasp_success_radius
-        stage2_ready = self.insertion_alignment > self.cfg.insertion_alignment_success
-        stage3_ready = stage2_ready & pregrasp_success & (self.insertion_lateral_error < self.cfg.touch_success_band)
-        success = (
-            (self.touch_target_distance < self.cfg.success_radius)
-            & stage3_ready
-            & (self.touch_error < self.cfg.touch_success_band)
-            & (self.object_overlap <= self.cfg.max_success_overlap)
+        stage1_ready = self.insertion_alignment > self.cfg.insertion_alignment_success
+        stage2_ready = stage1_ready & self.pregrasp_held
+        stage3_ready = (
+            stage2_ready
+            & (self.insertion_lateral_error < self.cfg.touch_success_band)
+            & (self.insertion_progress > self.cfg.stage3_insertion_start_progress)
+        )
+        center_best_initialized = self.best_target_center_distance < 9.0
+        center_distance_improvement = torch.where(
+            stage3_ready & center_best_initialized,
+            torch.clamp(self.best_target_center_distance - self.distance, min=0.0),
+            torch.zeros_like(self.distance),
+        )
+        self.target_center_improvement = center_distance_improvement
+        center_improvement_reward = torch.clamp(
+            center_distance_improvement / max(float(self.cfg.final_center_improvement_scale), 1e-6),
+            min=0.0,
+            max=1.0,
+        )
+        center_new_best_reward = torch.where(
+            center_distance_improvement > 1e-5,
+            center_precision_reward,
+            torch.zeros_like(center_precision_reward),
+        )
+        self.best_target_center_distance = torch.where(
+            stage3_ready,
+            torch.minimum(self.best_target_center_distance, self.distance),
+            self.best_target_center_distance,
+        )
+        final_center_ready = (
+            stage3_ready
+            & (self.distance < self.cfg.final_center_success_radius)
             & (self.body_target_clearance_error <= 1e-4)
+        )
+        success = (
+            final_center_ready
         )
         pregrasp_bonus = pregrasp_success.float() * self.cfg.pregrasp_bonus_weight
         success_bonus = success.float() * self.cfg.success_bonus_weight
@@ -341,23 +547,33 @@ class MT4ReachEnv(DirectRLEnv):
         reward = (
             self.cfg.stage1_alignment_weight * insertion_alignment_reward
             + alignment_gate * (
-                self.cfg.stage2_pregrasp_weight * pregrasp_reward
-                + self.cfg.stage2_touch_weight * pregrasp_touch_reward
-                + self.cfg.stage2_hold_weight * insertion_alignment_reward
+                self.cfg.stage2_entry_weight * pregrasp_entry_reward
+                + self.cfg.stage2_entry_touch_weight * pregrasp_entry_touch_reward
+                + self.pregrasp_entry_reached.float()
+                * (
+                    self.cfg.stage2_pregrasp_weight * pregrasp_reward
+                    + self.cfg.stage2_touch_weight * pregrasp_touch_reward
+                    + self.cfg.stage2_hold_weight * pregrasp_hold_reward
+                    + self.cfg.stage2_center_progress_weight * pregrasp_center_progress_reward
+                )
             )
-            + stage3_gate * (
-                self.cfg.stage3_line_weight * insertion_line_reward
+            + (alignment_gate * self.pregrasp_held.float()) * (
+                self.cfg.stage3_line_weight * insertion_line_reward * (0.25 + 0.75 * insertion_progress_reward)
                 + self.cfg.stage3_touch_weight * touch_ready_reward
-                + self.cfg.stage3_progress_weight * self.insertion_progress
+                + self.cfg.stage3_progress_weight * insertion_progress_reward
                 + self.cfg.stage3_depth_weight * touch_depth_reward
+                + self.cfg.stage3_slow_weight * insertion_slow_reward
+                + self.cfg.stage4_center_improvement_weight * center_improvement_reward
+                + self.cfg.stage4_center_precision_weight * center_new_best_reward
             )
             + pregrasp_bonus
+            + pregrasp_entry_success.float() * 0.5
             + success_bonus
             - self.cfg.target_contact_penalty_weight * self.target_contact_penalty
             - self.cfg.stage1_wrong_way_weight * wrong_way_penalty
             - self.cfg.action_penalty_weight * action_penalty
             - self.cfg.joint_velocity_penalty_weight * joint_velocity_penalty
-            - self.cfg.time_penalty_weight * time_fraction
+            - self.cfg.time_penalty_weight * time_fraction * (~success).float()
         )
         return reward
 
@@ -365,18 +581,48 @@ class MT4ReachEnv(DirectRLEnv):
         self._compute_intermediate_values()
 
         success = (
-            (self.touch_target_distance < self.cfg.success_radius)
-            & (self.pregrasp_distance < self.cfg.pregrasp_success_radius)
+            self.pregrasp_held
             & (self.insertion_alignment > self.cfg.insertion_alignment_success)
-            & (self.touch_error < self.cfg.touch_success_band)
             & (self.insertion_lateral_error < self.cfg.touch_success_band)
-            & (self.object_overlap <= self.cfg.max_success_overlap)
+            & (self.insertion_progress > self.cfg.stage3_insertion_start_progress)
+            & (self.distance < self.cfg.final_center_success_radius)
             & (self.body_target_clearance_error <= 1e-4)
         )
+        pregrasp_entry_success = self.pregrasp_entry_distance < self.cfg.pregrasp_entry_success_radius
         pregrasp_success = self.pregrasp_distance < self.cfg.pregrasp_success_radius
-        stage2_ready = self.insertion_alignment > self.cfg.insertion_alignment_success
-        stage3_ready = stage2_ready & pregrasp_success & (self.insertion_lateral_error < self.cfg.touch_success_band)
-        stage3_touch_ready = stage3_ready & (self.touch_error < self.cfg.touch_success_band)
+        joint_vel = self.robot.data.joint_vel[:, self.joint_ids]
+        joint_velocity_penalty = torch.sum(joint_vel * joint_vel, dim=-1)
+        hold_stability_reward = torch.exp(-self.cfg.pregrasp_hold_velocity_scale * joint_velocity_penalty)
+        pregrasp_entry_ready = (
+            (self.pregrasp_entry_distance < self.cfg.pregrasp_entry_hold_radius)
+            & (self.insertion_alignment > self.cfg.insertion_alignment_success)
+            & (hold_stability_reward > self.cfg.pregrasp_hold_min_stability)
+        )
+        self.pregrasp_entry_reached = self.pregrasp_entry_reached | pregrasp_entry_ready
+        pregrasp_hold_ready = (
+            (self.pregrasp_distance < self.cfg.pregrasp_hold_radius)
+            & self.pregrasp_entry_reached
+            & (self.insertion_alignment > self.cfg.insertion_alignment_success)
+            & (hold_stability_reward > self.cfg.pregrasp_hold_min_stability)
+        )
+        self.pregrasp_held = self.pregrasp_held | pregrasp_hold_ready
+        stage1_ready = self.insertion_alignment > self.cfg.insertion_alignment_success
+        stage2_ready = stage1_ready & self.pregrasp_held
+        stage3_ready = (
+            stage2_ready
+            & (self.insertion_lateral_error < self.cfg.touch_success_band)
+            & (self.insertion_progress > self.cfg.stage3_insertion_start_progress)
+        )
+        stage3_touch_ready = (
+            stage3_ready
+            & (self.insertion_progress > self.cfg.stage3_insertion_success_progress)
+            & (self.touch_error < self.cfg.touch_success_band)
+        )
+        stage4_center_ready = (
+            stage3_ready
+            & (self.distance < self.cfg.final_center_success_radius)
+            & (self.body_target_clearance_error <= 1e-4)
+        )
         time_out = self.episode_length_buf >= self.max_episode_length - 1
 
         # Training/evaluation logs.
@@ -384,13 +630,29 @@ class MT4ReachEnv(DirectRLEnv):
             "mt4/training_mode_stage_b": torch.tensor(
                 1.0 if self.training_mode == "stage_b_insertion" else 0.0, device=self.device
             ),
+            "mt4/training_mode_stage4": torch.tensor(
+                1.0 if self.training_mode == "stage4_center" else 0.0, device=self.device
+            ),
+            "mt4/reset_mode_pregrasp_replay": torch.tensor(
+                1.0 if self.reset_mode == "pregrasp_replay" else 0.0, device=self.device
+            ),
             "mt4/success_rate": success.float().mean(),
+            "mt4/stage1_alignment_ready_rate": stage1_ready.float().mean(),
+            "mt4/pregrasp_entry_success_rate": pregrasp_entry_success.float().mean(),
+            "mt4/pregrasp_entry_ready_rate": pregrasp_entry_ready.float().mean(),
+            "mt4/pregrasp_entry_reached_rate": self.pregrasp_entry_reached.float().mean(),
             "mt4/pregrasp_success_rate": pregrasp_success.float().mean(),
-            "mt4/stage2_alignment_ready_rate": stage2_ready.float().mean(),
+            "mt4/pregrasp_hold_ready_rate": pregrasp_hold_ready.float().mean(),
+            "mt4/pregrasp_held_rate": self.pregrasp_held.float().mean(),
+            "mt4/stage2_pregrasp_ready_rate": stage2_ready.float().mean(),
+            "mt4/stage2_alignment_ready_rate": stage1_ready.float().mean(),
             "mt4/stage3_insertion_ready_rate": stage3_ready.float().mean(),
             "mt4/stage3_touch_ready_rate": stage3_touch_ready.float().mean(),
+            "mt4/stage4_center_ready_rate": stage4_center_ready.float().mean(),
             "mt4/mean_distance": self.distance.mean(),
+            "mt4/mean_pregrasp_entry_distance": self.pregrasp_entry_distance.mean(),
             "mt4/mean_pregrasp_distance": self.pregrasp_distance.mean(),
+            "mt4/mean_gripper_center_pregrasp_distance": self.pregrasp_distance.mean(),
             "mt4/mean_touch_target_distance": self.touch_target_distance.mean(),
             "mt4/mean_insertion_lateral_error": self.insertion_lateral_error.mean(),
             "mt4/mean_alignment": self.alignment.mean(),
@@ -400,7 +662,13 @@ class MT4ReachEnv(DirectRLEnv):
             "mt4/mean_object_overlap": self.object_overlap.mean(),
             "mt4/mean_body_target_clearance_error": self.body_target_clearance_error.mean(),
             "mt4/mean_target_contact_penalty": self.target_contact_penalty.mean(),
+            "mt4/mean_pregrasp_center_progress": self.pregrasp_center_progress.mean(),
             "mt4/mean_insertion_progress": self.insertion_progress.mean(),
+            "mt4/mean_best_target_center_distance": torch.clamp(
+                self.best_target_center_distance, max=1.0
+            ).mean(),
+            "mt4/mean_target_center_improvement": self.target_center_improvement.mean(),
+            "mt4/mean_pregrasp_line_error": self.pregrasp_line_error.mean(),
             "mt4/min_distance": self.distance.min(),
         }
 
@@ -423,7 +691,48 @@ class MT4ReachEnv(DirectRLEnv):
         self.robot.write_joint_state_to_sim(joint_pos, joint_vel, env_ids=env_ids)
 
         self.joint_targets[env_ids] = self.home_joint_pos
+        self.best_target_center_distance[env_ids] = 10.0
+        self.target_center_improvement[env_ids] = 0.0
+        self.pregrasp_entry_reached[env_ids] = False
+        self.pregrasp_held[env_ids] = False
         self._sample_targets(env_ids)
+        self._apply_pregrasp_replay_reset(env_ids)
+
+    def _apply_pregrasp_replay_reset(self, env_ids: torch.Tensor):
+        if self.pregrasp_replay_states is None or len(env_ids) == 0:
+            return
+
+        replay_prob = min(max(float(self.cfg.pregrasp_replay_probability), 0.0), 1.0)
+        replay_mask = torch.rand(len(env_ids), device=self.device) < replay_prob
+        if not torch.any(replay_mask):
+            return
+
+        replay_env_ids = env_ids[replay_mask]
+        state_count = self.pregrasp_replay_states["joint_pos"].shape[0]
+        sample_ids = torch.randint(0, state_count, (len(replay_env_ids),), device=self.device)
+
+        replay_joint_pos = self.pregrasp_replay_states["joint_pos"][sample_ids].clone()
+        replay_joint_vel = self.pregrasp_replay_states["joint_vel"][sample_ids].clone()
+        replay_targets = self.pregrasp_replay_states["targets"][sample_ids].clone()
+
+        if self.cfg.pregrasp_replay_joint_noise > 0.0:
+            replay_joint_pos += self.cfg.pregrasp_replay_joint_noise * torch.randn_like(replay_joint_pos)
+        if self.cfg.pregrasp_replay_target_noise > 0.0:
+            replay_targets += self.cfg.pregrasp_replay_target_noise * torch.randn_like(replay_targets)
+
+        replay_joint_pos = torch.max(torch.min(replay_joint_pos, self.joint_upper), self.joint_lower)
+        replay_joint_vel = replay_joint_vel * float(self.cfg.pregrasp_replay_joint_velocity_scale)
+
+        joint_pos = self.robot.data.joint_pos[replay_env_ids].clone()
+        joint_vel = self.robot.data.joint_vel[replay_env_ids].clone()
+        joint_pos[:, self.joint_ids] = replay_joint_pos
+        joint_vel[:, self.joint_ids] = replay_joint_vel
+
+        self.robot.write_joint_state_to_sim(joint_pos, joint_vel, env_ids=replay_env_ids)
+        self.joint_targets[replay_env_ids] = replay_joint_pos
+        self.targets[replay_env_ids] = replay_targets
+        self._compute_target_geometry(replay_env_ids)
+        self._update_target_markers()
 
     def _sample_targets(self, env_ids: torch.Tensor):
         n = len(env_ids)
@@ -458,19 +767,25 @@ class MT4ReachEnv(DirectRLEnv):
         fallback = torch.tensor([1.0, 0.0, 0.0], device=self.device).repeat(len(env_ids), 1)
         radial_norm = torch.linalg.norm(radial_dir, dim=-1, keepdim=True)
         radial_dir = torch.where(radial_norm > 1e-6, radial_dir / torch.clamp(radial_norm, min=1e-6), fallback)
-        down_dir = torch.tensor([0.0, 0.0, -1.0], device=self.device).repeat(len(env_ids), 1)
-        approach_dir = self.cfg.approach_horizontal_weight * radial_dir + self.cfg.approach_down_weight * down_dir
-        approach_dir = approach_dir / torch.clamp(torch.linalg.norm(approach_dir, dim=-1, keepdim=True), min=1e-6)
+        up_dir = torch.tensor([0.0, 0.0, 1.0], device=self.device).repeat(len(env_ids), 1)
 
-        # The blue sphere is the first-stage waypoint: above and slightly robot-side of the red target.
-        # From blue to red, the desired insertion motion follows approach_dir at roughly 45 degrees.
-        self.approach_dir[env_ids] = approach_dir
-        self.pregrasp_targets[env_ids] = targets - self.cfg.pregrasp_standoff * approach_dir
-        self.touch_targets[env_ids] = targets - self.cfg.desired_touch_distance * approach_dir
-        desired_pregrasp_dir = self.pregrasp_targets[env_ids]
-        desired_pregrasp_dir = desired_pregrasp_dir / torch.clamp(
-            torch.linalg.norm(desired_pregrasp_dir, dim=-1, keepdim=True), min=1e-6
+        # The blue marker is intentionally constructed on the base-center -> red-target radial line.
+        # XY: move toward the robot base along radial_dir. Z: move upward. This keeps the gripper approach
+        # centered on the red target instead of introducing a sideways marker offset.
+        pregrasp_targets = (
+            targets
+            - self.cfg.pregrasp_horizontal_offset * radial_dir
+            + self.cfg.pregrasp_vertical_offset * up_dir
         )
+        approach_dir = targets - pregrasp_targets
+        approach_dir = approach_dir / torch.clamp(torch.linalg.norm(approach_dir, dim=-1, keepdim=True), min=1e-6)
+        pregrasp_entry_targets = pregrasp_targets - self.cfg.pregrasp_entry_offset * approach_dir
+
+        self.approach_dir[env_ids] = approach_dir
+        self.pregrasp_entry_targets[env_ids] = pregrasp_entry_targets
+        self.pregrasp_targets[env_ids] = pregrasp_targets
+        self.touch_targets[env_ids] = targets - self.cfg.desired_touch_distance * approach_dir
+        desired_pregrasp_dir = approach_dir
         self.desired_pregrasp_dir[env_ids] = desired_pregrasp_dir
         self.desired_insertion_dir[env_ids] = approach_dir
         self.desired_gripper_dir[env_ids] = desired_pregrasp_dir
@@ -480,16 +795,21 @@ class MT4ReachEnv(DirectRLEnv):
         wrist_quat_w = self.robot.data.body_quat_w[:, self.ee_body_id, :]
         self.wrist_pos = wrist_pos_w - self.scene.env_origins
 
-        tip_offset_b = torch.tensor(self.cfg.gripper_tip_offset_b, device=self.device).repeat(self.num_envs, 1)
+        center_offset_b = torch.tensor(self.cfg.gripper_center_offset_b, device=self.device).repeat(self.num_envs, 1)
         forward_axis_b = torch.tensor(self.cfg.gripper_forward_axis_b, device=self.device).repeat(self.num_envs, 1)
-        self.gripper_tip_pos = self.wrist_pos + math_utils.quat_apply(wrist_quat_w, tip_offset_b)
+        self.gripper_center_pos = self.wrist_pos + math_utils.quat_apply(wrist_quat_w, center_offset_b)
+        # Keep the legacy variable name for existing observations/tools. It now represents
+        # the midpoint between the two gripper pads, which is the point that must meet blue.
+        self.gripper_tip_pos = self.gripper_center_pos
         self.gripper_forward = math_utils.quat_apply(wrist_quat_w, forward_axis_b)
         self.gripper_forward = self.gripper_forward / torch.clamp(torch.linalg.norm(self.gripper_forward, dim=-1, keepdim=True), min=1e-6)
 
         self.to_target = self.targets - self.gripper_tip_pos
+        self.to_pregrasp_entry = self.pregrasp_entry_targets - self.gripper_tip_pos
         self.to_pregrasp = self.pregrasp_targets - self.gripper_tip_pos
         self.to_touch = self.touch_targets - self.gripper_tip_pos
         self.distance = torch.linalg.norm(self.to_target, dim=-1)
+        self.pregrasp_entry_distance = torch.linalg.norm(self.to_pregrasp_entry, dim=-1)
         self.pregrasp_distance = torch.linalg.norm(self.to_pregrasp, dim=-1)
         self.touch_target_distance = torch.linalg.norm(self.to_touch, dim=-1)
         self.touch_error = torch.abs(self.distance - self.cfg.desired_touch_distance)
@@ -497,11 +817,14 @@ class MT4ReachEnv(DirectRLEnv):
         body_pos = self.robot.data.body_pos_w - self.scene.env_origins.unsqueeze(1)
         body_to_target = body_pos - self.targets.unsqueeze(1)
         body_target_distance = torch.linalg.norm(body_to_target, dim=-1)
+        # The gripper link is allowed to contain the visual target center for the
+        # final grasp-ready pose. Other links should still avoid the target.
+        body_target_distance[:, self.ee_body_id] = 10.0
         min_body_target_distance = torch.min(body_target_distance, dim=-1).values
         self.body_target_clearance_error = torch.clamp(
             self.cfg.min_robot_target_clearance - min_body_target_distance, min=0.0
         )
-        self.target_contact_penalty = self.object_overlap + self.body_target_clearance_error
+        self.target_contact_penalty = self.body_target_clearance_error
         insertion_axis = torch.sum(self.to_touch * self.approach_dir, dim=-1, keepdim=True) * self.approach_dir
         insertion_lateral = self.to_touch - insertion_axis
         self.insertion_lateral_error = torch.linalg.norm(insertion_lateral, dim=-1)
@@ -509,9 +832,20 @@ class MT4ReachEnv(DirectRLEnv):
         self.insertion_alignment = torch.sum(self.gripper_forward * self.desired_insertion_dir, dim=-1)
         self.alignment = self.insertion_alignment
         self.clearance_error = torch.clamp(self.cfg.min_object_clearance - self.distance, min=0.0)
-        insertion_path_length = max(self.cfg.pregrasp_standoff - self.cfg.desired_touch_distance, 1e-6)
+        target_xy = self.targets[:, :2]
+        pregrasp_xy = self.pregrasp_targets[:, :2]
+        radial_norm = torch.linalg.norm(target_xy, dim=-1, keepdim=True)
+        radial_unit = target_xy / torch.clamp(radial_norm, min=1e-6)
+        pregrasp_projection = torch.sum(pregrasp_xy * radial_unit, dim=-1, keepdim=True) * radial_unit
+        self.pregrasp_line_error = torch.linalg.norm(pregrasp_xy - pregrasp_projection, dim=-1)
+        entry_to_center_length = torch.linalg.norm(self.pregrasp_targets - self.pregrasp_entry_targets, dim=-1)
+        raw_center_progress = torch.sum((self.gripper_tip_pos - self.pregrasp_entry_targets) * self.approach_dir, dim=-1)
+        self.pregrasp_center_progress = torch.clamp(
+            raw_center_progress / torch.clamp(entry_to_center_length, min=1e-6), min=0.0, max=1.0
+        )
+        insertion_path_length = torch.linalg.norm(self.touch_targets - self.pregrasp_targets, dim=-1)
         raw_progress = torch.sum((self.gripper_tip_pos - self.pregrasp_targets) * self.approach_dir, dim=-1)
-        self.insertion_progress = torch.clamp(raw_progress / insertion_path_length, min=0.0, max=1.0)
+        self.insertion_progress = torch.clamp(raw_progress / torch.clamp(insertion_path_length, min=1e-6), min=0.0, max=1.0)
 
     def _update_target_markers(self):
         if not hasattr(self, "target_markers"):
@@ -529,12 +863,11 @@ class MT4ReachEnv(DirectRLEnv):
             # If success, show green marker at target.
             # If not success, hide marker far below the ground.
             success = (
-                (self.touch_target_distance < self.cfg.success_radius)
-                & (self.pregrasp_distance < self.cfg.pregrasp_success_radius)
+                self.pregrasp_held
                 & (self.insertion_alignment > self.cfg.insertion_alignment_success)
-                & (self.touch_error < self.cfg.touch_success_band)
                 & (self.insertion_lateral_error < self.cfg.touch_success_band)
-                & (self.object_overlap <= self.cfg.max_success_overlap)
+                & (self.insertion_progress > self.cfg.stage3_insertion_start_progress)
+                & (self.distance < self.cfg.final_center_success_radius)
                 & (self.body_target_clearance_error <= 1e-4)
             )
             success_pos_w = target_pos_w.clone()

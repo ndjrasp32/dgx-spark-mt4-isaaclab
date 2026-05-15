@@ -21,10 +21,19 @@ with CSV_PATH.open("r", encoding="utf-8") as f:
                 return None
 
         row["_success_rate"] = to_float(row.get("success_rate"))
+        row["_stage1_alignment_ready_rate"] = to_float(row.get("stage1_alignment_ready_rate"))
+        row["_pregrasp_entry_success_rate"] = to_float(row.get("pregrasp_entry_success_rate"))
+        row["_pregrasp_entry_ready_rate"] = to_float(row.get("pregrasp_entry_ready_rate"))
+        row["_pregrasp_entry_reached_rate"] = to_float(row.get("pregrasp_entry_reached_rate"))
         row["_pregrasp_success_rate"] = to_float(row.get("pregrasp_success_rate"))
+        row["_pregrasp_hold_ready_rate"] = to_float(row.get("pregrasp_hold_ready_rate"))
+        row["_pregrasp_held_rate"] = to_float(row.get("pregrasp_held_rate"))
+        row["_stage2_pregrasp_ready_rate"] = to_float(row.get("stage2_pregrasp_ready_rate"))
         row["_stage2_alignment_ready_rate"] = to_float(row.get("stage2_alignment_ready_rate"))
         row["_stage3_insertion_ready_rate"] = to_float(row.get("stage3_insertion_ready_rate"))
         row["_stage3_touch_ready_rate"] = to_float(row.get("stage3_touch_ready_rate"))
+        row["_stage4_center_ready_rate"] = to_float(row.get("stage4_center_ready_rate"))
+        row["_mean_pregrasp_entry_distance"] = to_float(row.get("mean_pregrasp_entry_distance"))
         row["_mean_pregrasp_distance"] = to_float(row.get("mean_pregrasp_distance"))
         row["_mean_touch_error"] = to_float(row.get("mean_touch_error"))
         row["_mean_distance"] = to_float(row.get("mean_distance"))
@@ -32,7 +41,11 @@ with CSV_PATH.open("r", encoding="utf-8") as f:
         row["_mean_pregrasp_alignment"] = to_float(row.get("mean_pregrasp_alignment"))
         row["_mean_insertion_alignment"] = to_float(row.get("mean_insertion_alignment"))
         row["_mean_target_contact_penalty"] = to_float(row.get("mean_target_contact_penalty"))
+        row["_mean_pregrasp_center_progress"] = to_float(row.get("mean_pregrasp_center_progress"))
         row["_mean_insertion_progress"] = to_float(row.get("mean_insertion_progress"))
+        row["_mean_best_target_center_distance"] = to_float(row.get("mean_best_target_center_distance"))
+        row["_mean_target_center_improvement"] = to_float(row.get("mean_target_center_improvement"))
+        row["_mean_pregrasp_line_error"] = to_float(row.get("mean_pregrasp_line_error"))
         row["_mean_reward"] = to_float(row.get("mean_reward"))
         row["_primary_distance"] = row["_mean_pregrasp_distance"]
         if row["_primary_distance"] is None:
@@ -72,15 +85,26 @@ else:
                 target_standoff_error = abs((target_distance or 0.055) - 0.055)
                 touch_error = r["_mean_touch_error"] or target_standoff_error
                 success = r["_success_rate"] or 0.0
+                stage1_ready = r["_stage1_alignment_ready_rate"] or r["_stage2_alignment_ready_rate"] or 0.0
+                entry_success = r["_pregrasp_entry_success_rate"] or 0.0
+                entry_ready = r["_pregrasp_entry_ready_rate"] or 0.0
+                entry_reached = r["_pregrasp_entry_reached_rate"] or 0.0
                 pregrasp_success = r["_pregrasp_success_rate"] or 0.0
-                stage2_ready = r["_stage2_alignment_ready_rate"] or 0.0
+                pregrasp_hold = r["_pregrasp_hold_ready_rate"] or 0.0
+                pregrasp_held = r["_pregrasp_held_rate"] or 0.0
+                stage2_ready = r["_stage2_pregrasp_ready_rate"] or 0.0
                 stage3_ready = r["_stage3_insertion_ready_rate"] or 0.0
                 stage3_touch_ready = r["_stage3_touch_ready_rate"] or 0.0
+                stage4_center_ready = r["_stage4_center_ready_rate"] or 0.0
                 alignment = r["_mean_alignment"] or 0.0
                 pregrasp_alignment = r["_mean_pregrasp_alignment"] or alignment
                 insertion_alignment = r["_mean_insertion_alignment"] or alignment
                 contact_penalty = r["_mean_target_contact_penalty"] or 0.0
+                center_progress = r["_mean_pregrasp_center_progress"] or 0.0
                 insertion_progress = r["_mean_insertion_progress"] or 0.0
+                best_center_distance = r["_mean_best_target_center_distance"]
+                target_center_improvement = r["_mean_target_center_improvement"] or 0.0
+                line_error = r["_mean_pregrasp_line_error"] or 0.0
                 reward = r["_mean_reward"] or 0.0
                 return (
                     -distance
@@ -88,13 +112,24 @@ else:
                     -0.40 * touch_error
                     +0.05 * pregrasp_alignment
                     +0.08 * insertion_alignment
+                    +0.25 * stage1_ready
+                    +0.25 * entry_success
+                    +0.20 * entry_ready
+                    +0.20 * entry_reached
                     +0.50 * pregrasp_success
-                    +0.35 * stage2_ready
+                    +0.35 * pregrasp_hold
+                    +0.45 * pregrasp_held
+                    +0.55 * stage2_ready
                     +1.50 * stage3_ready
                     +2.50 * stage3_touch_ready
+                    +5.00 * stage4_center_ready
+                    +0.20 * center_progress
                     +0.10 * insertion_progress
+                    +0.40 * target_center_improvement
+                    -0.50 * (best_center_distance if best_center_distance is not None else distance)
                     +10.0 * success
                     -5.0 * contact_penalty
+                    -2.0 * line_error
                     +0.000001 * reward
                 )
 
@@ -129,10 +164,19 @@ print("reason        =", reason)
 print("checkpoint    =", best.get("checkpoint"))
 print("iteration     =", best.get("iteration"))
 print("success_rate  =", best.get("success_rate"))
+print("stage1_ready  =", best.get("stage1_alignment_ready_rate"))
+print("entry_succ    =", best.get("pregrasp_entry_success_rate"))
+print("entry_ready   =", best.get("pregrasp_entry_ready_rate"))
+print("entry_reached =", best.get("pregrasp_entry_reached_rate"))
 print("pregrasp_succ =", best.get("pregrasp_success_rate"))
+print("pregrasp_hold =", best.get("pregrasp_hold_ready_rate"))
+print("pregrasp_held =", best.get("pregrasp_held_rate"))
+print("stage2_pregrasp=", best.get("stage2_pregrasp_ready_rate"))
 print("stage2_ready  =", best.get("stage2_alignment_ready_rate"))
 print("stage3_ready  =", best.get("stage3_insertion_ready_rate"))
 print("stage3_touch  =", best.get("stage3_touch_ready_rate"))
+print("stage4_center =", best.get("stage4_center_ready_rate"))
+print("entry_dist    =", best.get("mean_pregrasp_entry_distance"))
 print("pregrasp_dist =", best.get("mean_pregrasp_distance"))
 print("touch_error   =", best.get("mean_touch_error"))
 print("mean_distance =", best.get("mean_distance"))
@@ -140,6 +184,10 @@ print("mean_alignment=", best.get("mean_alignment"))
 print("pregrasp_align=", best.get("mean_pregrasp_alignment"))
 print("insert_align  =", best.get("mean_insertion_alignment"))
 print("contact_penalty=", best.get("mean_target_contact_penalty"))
+print("center_prog  =", best.get("mean_pregrasp_center_progress"))
+print("best_center  =", best.get("mean_best_target_center_distance"))
+print("center_impr  =", best.get("mean_target_center_improvement"))
+print("line_error   =", best.get("mean_pregrasp_line_error"))
 print("min_distance  =", best.get("min_distance"))
 print("mean_reward   =", best.get("mean_reward"))
 print("path          =", best.get("path"))

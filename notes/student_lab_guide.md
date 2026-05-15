@@ -196,6 +196,36 @@ notes/mt4_reach_stage_reward_plan.md
 
 이제 그래프를 볼 때는 `mean_pregrasp_distance`보다 `mean_insertion_alignment`를 먼저 확인해야 합니다. 이 값이 음수에서 양수로 바뀌는지가 다음 실험의 핵심입니다.
 
+### 5.7 파란 공을 진입선 위에 다시 놓기
+
+그 다음 화면을 보면서 또 하나의 문제가 보였습니다. 파란 공이 빨간 공으로 들어가는 선에서 조금 틀어져 있으면, 집게 끝이 파란 공에 닿더라도 빨간 공이 집게 사이로 자연스럽게 들어오지 않습니다.
+
+그래서 파란 공의 의미를 더 정확히 바꾸었습니다.
+
+```text
+파란 공 = 빨간 공으로 들어가기 직전, 같은 진입선 위에서 집게 끝이 잠깐 멈추는 대기 지점
+```
+
+이제 파란 공은 빨간 공과 로봇팔 베이스 중심축을 잇는 직선 위에 놓입니다. 빨간 공이 랜덤으로 나타나면, 파란 공은 그 빨간 공에서 로봇팔 쪽으로 조금 당기고 위쪽으로 조금 올린 위치가 됩니다. 이렇게 하면 집게 끝이 파란 공에 닿은 뒤, 같은 방향으로 천천히 내려가며 빨간 공을 집게 영역 안으로 넣는 흐름을 만들 수 있습니다.
+
+새로 확인하는 지표도 추가했습니다.
+
+- `mean_pregrasp_line_error`: 파란 공이 베이스-빨간공 직선에서 얼마나 벗어났는지
+- `pregrasp_entry_success_rate`: 집게 중앙이 파란 공의 로봇팔 쪽 표면점 근처까지 도착한 비율
+- `pregrasp_entry_reached_rate`: episode 중 파란 공 표면 진입점을 한 번이라도 지난 비율
+- `mean_pregrasp_entry_distance`: 집게 중앙과 파란 공 표면 진입점 사이 거리
+- `mean_pregrasp_center_progress`: 파란 공 표면점에서 중앙점으로 얼마나 들어갔는지
+- `mean_gripper_center_pregrasp_distance`: 집게 양 끝 사이의 중앙점이 파란 공 중앙에 얼마나 가까운지
+- `stage1_alignment_ready_rate`: 빨간 공으로 들어갈 방향을 먼저 맞춘 비율
+- `pregrasp_hold_ready_rate`: 집게 끝이 파란 공 근처에서 방향을 맞춘 채로 안정적으로 대기하는 비율
+- `pregrasp_held_rate`: episode 중 그 대기 조건을 한 번이라도 만족한 비율
+- `stage2_pregrasp_ready_rate`: 방향을 맞춘 뒤 파란 공에서 대기 조건까지 만족한 비율
+- `stage3_insertion_ready_rate`: 대기 후 실제로 빨간 공 쪽으로 진입을 시작한 비율
+
+이 변경 때문에 이전 geometry로 저장한 pregrasp replay state는 새 학습에 그대로 쓰면 안 됩니다. 새 파란 공 기준으로 다시 학습하거나, 최소한 replay state를 다시 수집해야 합니다.
+
+한 번 더 수정한 뒤에는 파란 공을 단순한 점이 아니라 작은 영역으로 보았습니다. 집게 중앙은 먼저 로봇팔에 가까운 파란 공 표면 쪽으로 접근하고, 그 다음 파란 공 중앙까지 들어간 뒤, 같은 방향으로 빨간 공 쪽에 진입해야 합니다. 이 구조는 `entry -> center -> insertion` 순서로 이해하면 됩니다.
+
 ## 6. 그래프를 읽는 법
 
 실험 후 생성되는 주요 그래프는 다음 위치에 있습니다.
@@ -213,6 +243,7 @@ logs/plots/
 - `mt4_touch_error_curve.png`: 목표 표면 접촉 위치에 가까워지는지 봅니다.
 - `mt4_insertion_lateral_error_curve.png`: 목표 삽입 경로에서 옆으로 벗어나는 정도를 봅니다.
 - `mt4_stage_curve.png`: stage 2, stage 3 준비율이 생기는지 봅니다.
+- `mt4_geometry_curve.png`: 파란 공이 빨간 공의 진입선 위에 잘 놓였는지 봅니다.
 - `mt4_safety_curve.png`: 빨간 공과 로봇팔이 겹치거나 너무 가까워지는지 봅니다.
 
 그래프를 볼 때 reward만 보면 안 됩니다. reward가 올라가도 성공률이 0이면, 로봇이 진짜 목표를 배운 것이 아닐 수 있습니다.
@@ -310,3 +341,41 @@ xhost +SI:localuser:spark-robotics
 ```bash
 ~/work/robotarm/mt4_isaac_lab_task/scripts/train_stage_b_insertion_128_500.sh --seed 42
 ```
+
+Stage-B 초기 학습 결과, 로봇팔은 빨간 공 표면에 더 가까워졌지만 성공률은 아직 낮았습니다. 그래서 다음에는 curriculum reset을 사용합니다. 이것은 마지막 삽입 동작을 더 많이 연습시키기 위해, Policy A가 파란 공 근처에 잘 도착한 순간을 저장해 두고 Stage-B 학습을 그 근처에서 시작시키는 방법입니다.
+
+학생들에게는 "어려운 전체 동작을 계속 반복하기보다, 잘 안 되는 마지막 구간만 따로 많이 연습하게 만드는 방법"으로 설명할 수 있습니다. 자세한 설명은 `notes/mt4_reach_curriculum_reset_plan.md`에 있습니다.
+
+최근 수정에서는 Stage-B를 더 구체적으로 `파란 공 표면점 -> 파란 공 중앙 -> 빨간 공 진입`으로 나누었습니다. 그래서 그래프를 볼 때는 `pregrasp_entry_reached_rate`, `mean_pregrasp_center_progress`, `stage3_insertion_ready_rate`를 순서대로 보면 됩니다.
+
+마지막 단계에서는 빨간 공 중심이 집게 양 끝 사이 중앙에 들어오는지를 봅니다. 이때 같은 위치에서 계속 보상을 받으며 맴돌지 않도록, episode 중 이전보다 더 가까워졌을 때만 추가 보상을 주는 방식으로 바꾸었습니다.
+
+- `stage4_center_ready_rate`: 빨간 공 중심이 집게 중앙에 들어온 비율
+- `mean_best_target_center_distance`: episode 중 빨간 공 중심에 가장 가까웠던 평균 거리
+- `mean_target_center_improvement`: 이전 최단거리보다 더 가까워진 정도
+
+이 방식은 "정답 위치에 조금씩 더 가까워질 때만 칭찬한다"는 뜻입니다. 강화학습에서 같은 행동을 반복하며 보상을 얻는 문제를 줄이는 한 방법입니다.
+
+실행 순서는 다음입니다.
+
+```bash
+~/work/robotarm/mt4_isaac_lab_task/scripts/collect_pregrasp_states.sh
+~/work/robotarm/mt4_isaac_lab_task/scripts/train_stage_b_replay_reset_128_500.sh --seed 42
+~/work/robotarm/mt4_isaac_lab_task/scripts/plot_and_select_best.sh
+```
+
+최근 GUI 학습에서는 16개 병렬 환경을 화면으로 보면서 마지막 중심 정렬을 확인했습니다. 결과는 `stage3_touch_ready_rate=0.90234375`, `stage4_center_ready_rate=0.001953125`, `success_rate=0.001953125`였습니다.
+
+이 숫자는 "완성"이 아니라 "마지막 단계가 처음으로 열렸다"는 의미입니다. 정렬, 파란 공 접근, 빨간 공 방향 진입은 꽤 잘 되었고, 이제 남은 문제는 빨간 공 중심을 집게 가운데에 정확히 넣는 마지막 몇 cm입니다.
+
+수업에서는 이 장면을 다음 질문으로 해석할 수 있습니다.
+
+- 전체 성공률이 낮아도 중간 단계 지표가 좋아지면 실험은 실패일까?
+- 마지막 단계가 너무 어려울 때 문제를 더 작게 나누는 방법은 무엇일까?
+- 성공률보다 먼저 봐야 하는 지표는 무엇일까?
+
+이후 빨간 구체를 조금 작게 만들었습니다. 이유는 실제 물체를 잡기 전에는 집게나 팔이 물체를 쳐서 움직이면 안 되기 때문입니다. 작은 물체는 더 안전한 해석을 가능하게 하지만, 강화학습 입장에서는 목표가 더 어려워집니다.
+
+작은 빨간 구체 기준 stage4 replay 학습에서는 `stage3_touch_ready_rate=0.9169921875`까지 올라갔지만, `stage4_center_ready_rate=0.000244140625`였습니다. 즉, 물체 근처까지 들어가는 것은 더 잘하게 되었지만, 물체 중심을 집게 가운데에 정확히 넣는 것은 아직 어렵습니다.
+
+이 결과는 수업에서 좋은 토론 지점입니다. 목표를 작게 하면 실제성은 올라가지만 성공률은 낮아질 수 있습니다. 따라서 "현실적인 목표"와 "학습 가능한 난이도" 사이의 균형을 찾아야 합니다.
