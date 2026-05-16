@@ -25,6 +25,7 @@ bash -n scripts/train_128_1000.sh \
   scripts/tensorboard_mt4.sh \
   scripts/collect_pregrasp_states.sh \
   scripts/collect_stage4_center_states.sh \
+  scripts/collect_stage4_safe_entry_states.sh \
   scripts/train_visual_16_300.sh \
   scripts/train_stage_b_insertion_128_500.sh \
   scripts/train_stage_b_replay_reset_128_500.sh \
@@ -41,7 +42,9 @@ bash -n scripts/train_128_1000.sh \
   scripts/train_stage4_blue_funnel_128_800.sh \
   scripts/train_stage4_relaxed_gate_128_300.sh \
   scripts/train_stage4_relaxed_gate_scratch_128_500.sh \
+  scripts/train_stage4_smooth_blue_funnel_128_300.sh \
   scripts/play_stage4_blue_center_best.sh \
+  scripts/play_stage4_smooth_blue_funnel_best.sh \
   scripts/train_stage4_center_visual_low_exploration_16_120.sh \
   scripts/copy_latest_training_video_lowres.sh \
   scripts/verify_before_push.sh

@@ -51,9 +51,11 @@ FIELDS = [
     "mean_pregrasp_alignment",
     "mean_insertion_alignment",
     "mean_target_contact_penalty",
+    "mean_early_target_contact_penalty",
     "mean_pregrasp_center_progress",
     "mean_insertion_progress",
     "mean_center_push_progress",
+    "mean_center_push_overshoot",
     "mean_best_center_push_progress",
     "mean_center_push_improvement",
     "mean_best_target_center_distance",
@@ -250,9 +252,11 @@ def main() -> None:
         "mean_pregrasp_alignment": summary.get("mean_pregrasp_alignment", ""),
         "mean_insertion_alignment": summary.get("mean_insertion_alignment", ""),
         "mean_target_contact_penalty": summary.get("mean_target_contact_penalty", ""),
+        "mean_early_target_contact_penalty": summary.get("mean_early_target_contact_penalty", ""),
         "mean_pregrasp_center_progress": summary.get("mean_pregrasp_center_progress", ""),
         "mean_insertion_progress": summary.get("mean_insertion_progress", ""),
         "mean_center_push_progress": summary.get("mean_center_push_progress", ""),
+        "mean_center_push_overshoot": summary.get("mean_center_push_overshoot", ""),
         "mean_best_center_push_progress": summary.get("mean_best_center_push_progress", ""),
         "mean_center_push_improvement": summary.get("mean_center_push_improvement", ""),
         "mean_best_target_center_distance": summary.get("mean_best_target_center_distance", ""),
@@ -340,8 +344,10 @@ def main() -> None:
                 f"| mean_distance | {row['mean_distance']} |",
                 f"| mean_insertion_alignment | {row['mean_insertion_alignment']} |",
                 f"| mean_target_contact_penalty | {row['mean_target_contact_penalty']} |",
+                f"| mean_early_target_contact_penalty | {row['mean_early_target_contact_penalty']} |",
                 f"| mean_pregrasp_center_progress | {row['mean_pregrasp_center_progress']} |",
                 f"| mean_center_push_progress | {row['mean_center_push_progress']} |",
+                f"| mean_center_push_overshoot | {row['mean_center_push_overshoot']} |",
                 f"| mean_best_center_push_progress | {row['mean_best_center_push_progress']} |",
                 f"| mean_center_push_improvement | {row['mean_center_push_improvement']} |",
                 f"| mean_best_target_center_distance | {row['mean_best_target_center_distance']} |",
@@ -406,7 +412,9 @@ def main() -> None:
     print(" pregrasp_dist =", row["mean_pregrasp_distance"])
     print(" touch_error   =", row["mean_touch_error"])
     print(" mean_distance =", row["mean_distance"])
+    print(" early_contact=", row["mean_early_target_contact_penalty"])
     print(" push_progress =", row["mean_center_push_progress"])
+    print(" push_overshot =", row["mean_center_push_overshoot"])
     print(" best_push     =", row["mean_best_center_push_progress"])
     print(" push_improve  =", row["mean_center_push_improvement"])
     print(" shell_improve =", row["mean_target_center_shell_improvement"])

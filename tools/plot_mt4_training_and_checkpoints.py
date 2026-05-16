@@ -135,9 +135,13 @@ def checkpoint_summary(run_dir, ea, tags):
     pregrasp_alignment_tag = find_tag(tags, ["mt4/mean_pregrasp_alignment", "mean_pregrasp_alignment"])
     insertion_alignment_tag = find_tag(tags, ["mt4/mean_insertion_alignment", "mean_insertion_alignment"])
     target_contact_tag = find_tag(tags, ["mt4/mean_target_contact_penalty", "mean_target_contact_penalty"])
+    early_target_contact_tag = find_tag(
+        tags, ["mt4/mean_early_target_contact_penalty", "mean_early_target_contact_penalty"]
+    )
     pregrasp_center_progress_tag = find_tag(tags, ["mt4/mean_pregrasp_center_progress", "mean_pregrasp_center_progress"])
     insertion_progress_tag = find_tag(tags, ["mt4/mean_insertion_progress", "mean_insertion_progress"])
     center_push_progress_tag = find_tag(tags, ["mt4/mean_center_push_progress", "mean_center_push_progress"])
+    center_push_overshoot_tag = find_tag(tags, ["mt4/mean_center_push_overshoot", "mean_center_push_overshoot"])
     best_center_push_progress_tag = find_tag(
         tags, ["mt4/mean_best_center_push_progress", "mean_best_center_push_progress"]
     )
@@ -237,9 +241,11 @@ def checkpoint_summary(run_dir, ea, tags):
     print(" pregrasp_align   =", pregrasp_alignment_tag)
     print(" insertion_align  =", insertion_alignment_tag)
     print(" contact_penalty  =", target_contact_tag)
+    print(" early_contact    =", early_target_contact_tag)
     print(" center_progress  =", pregrasp_center_progress_tag)
     print(" insertion_prog   =", insertion_progress_tag)
     print(" center_push_prog =", center_push_progress_tag)
+    print(" push_overshoot   =", center_push_overshoot_tag)
     print(" best_push_prog   =", best_center_push_progress_tag)
     print(" push_improve     =", center_push_improvement_tag)
     print(" best_center_dist =", best_center_dist_tag)
@@ -296,9 +302,11 @@ def checkpoint_summary(run_dir, ea, tags):
     pax, pay = get_series(ea, pregrasp_alignment_tag)
     iax, iay = get_series(ea, insertion_alignment_tag)
     tcx, tcy = get_series(ea, target_contact_tag)
+    etcx, etcy = get_series(ea, early_target_contact_tag)
     pcpx, pcpy = get_series(ea, pregrasp_center_progress_tag)
     ipx, ipy = get_series(ea, insertion_progress_tag)
     cppx, cppy = get_series(ea, center_push_progress_tag)
+    cpox, cpoy = get_series(ea, center_push_overshoot_tag)
     bcppx, bcppy = get_series(ea, best_center_push_progress_tag)
     cpix, cpiy = get_series(ea, center_push_improvement_tag)
     bcdx, bcdy = get_series(ea, best_center_dist_tag)
@@ -332,7 +340,7 @@ def checkpoint_summary(run_dir, ea, tags):
         sx + s1x + s1lx + pesx + perx + pehx + psx + phx + phdx + s2px + s2lx + s2x + s3x
         + s3lx + stx + s4x + bfcx + s4px
         + pedx + pdx + gcx + tdx + tex + mdx + ilx + ax + pax + iax + tcx + pcpx + ipx + cppx
-        + bcppx + cpix + bcdx + cix + csix + cspx + stpx + s3tpx + tsqx + ntrx + slrx + pswx
+        + etcx + cpox + bcppx + cpix + bcdx + cix + csix + cspx + stpx + s3tpx + tsqx + ntrx + slrx + pswx
         + mpfx + mpfrx + mpsrx + mphx + mprx + mpfunx + mpexpx + mpsix + mbpdx
         + firx + plex + grx + mindx + rx
     )
@@ -389,9 +397,11 @@ def checkpoint_summary(run_dir, ea, tags):
         pas, pav = nearest_value(pax, pay, target_step)
         ias, iav = nearest_value(iax, iay, target_step)
         tcs, tcv = nearest_value(tcx, tcy, target_step)
+        etcs, etcv = nearest_value(etcx, etcy, target_step)
         pcps, pcpv = nearest_value(pcpx, pcpy, target_step)
         ips, ipv = nearest_value(ipx, ipy, target_step)
         cpps, cppv = nearest_value(cppx, cppy, target_step)
+        cpos, cpov = nearest_value(cpox, cpoy, target_step)
         bcpps, bcppv = nearest_value(bcppx, bcppy, target_step)
         cpis, cpiv = nearest_value(cpix, cpiy, target_step)
         bcds, bcdv = nearest_value(bcdx, bcdy, target_step)
@@ -453,9 +463,11 @@ def checkpoint_summary(run_dir, ea, tags):
             "mean_pregrasp_alignment": pav,
             "mean_insertion_alignment": iav,
             "mean_target_contact_penalty": tcv,
+            "mean_early_target_contact_penalty": etcv,
             "mean_pregrasp_center_progress": pcpv,
             "mean_insertion_progress": ipv,
             "mean_center_push_progress": cppv,
+            "mean_center_push_overshoot": cpov,
             "mean_best_center_push_progress": bcppv,
             "mean_center_push_improvement": cpiv,
             "mean_best_target_center_distance": bcdv,
@@ -546,9 +558,9 @@ def main():
     plot_group(ea, tags, "alignment", ["alignment", "gripper_roll"])
     plot_group(ea, tags, "touch_error", ["touch_error", "touch_target"])
     plot_group(ea, tags, "insertion_lateral_error", ["insertion_lateral_error"])
-    plot_group(ea, tags, "stage", ["stage1", "stage2", "stage3", "latched", "stage4", "blue_final_center", "stage4_push", "touch_ready", "insertion_progress", "center_push_progress", "best_center_push", "center_push_improvement", "target_center_shell", "center_shortest_path", "stage4_time", "stage3_time", "terminal_success", "near_terminal", "stage_latch", "progressive_stage", "moving_pregrasp", "final_insertion", "pregrasp_success", "pregrasp_hold", "pregrasp_held", "pregrasp_entry", "center_progress"])
+    plot_group(ea, tags, "stage", ["stage1", "stage2", "stage3", "latched", "stage4", "blue_final_center", "stage4_push", "touch_ready", "insertion_progress", "center_push_progress", "center_push_overshoot", "best_center_push", "center_push_improvement", "target_center_shell", "center_shortest_path", "stage4_time", "stage3_time", "terminal_success", "near_terminal", "stage_latch", "progressive_stage", "moving_pregrasp", "final_insertion", "pregrasp_success", "pregrasp_hold", "pregrasp_held", "pregrasp_entry", "center_progress"])
     plot_group(ea, tags, "geometry", ["pregrasp_line_error", "pregrasp_entry_distance", "pregrasp_center_progress", "center_push_progress", "best_center_push", "center_push_improvement", "best_target_center", "target_center_improvement", "target_center_shell", "center_shortest_path"])
-    plot_group(ea, tags, "safety", ["object_overlap", "target_contact", "body_target_clearance"])
+    plot_group(ea, tags, "safety", ["object_overlap", "target_contact", "early_target_contact", "body_target_clearance", "center_push_overshoot"])
     plot_group(ea, tags, "episode_length", ["episode_length", "length"])
 
     checkpoint_summary(run_dir, ea, tags)

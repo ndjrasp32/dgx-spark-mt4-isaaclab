@@ -50,9 +50,11 @@ with CSV_PATH.open("r", encoding="utf-8") as f:
         row["_mean_pregrasp_alignment"] = to_float(row.get("mean_pregrasp_alignment"))
         row["_mean_insertion_alignment"] = to_float(row.get("mean_insertion_alignment"))
         row["_mean_target_contact_penalty"] = to_float(row.get("mean_target_contact_penalty"))
+        row["_mean_early_target_contact_penalty"] = to_float(row.get("mean_early_target_contact_penalty"))
         row["_mean_pregrasp_center_progress"] = to_float(row.get("mean_pregrasp_center_progress"))
         row["_mean_insertion_progress"] = to_float(row.get("mean_insertion_progress"))
         row["_mean_center_push_progress"] = to_float(row.get("mean_center_push_progress"))
+        row["_mean_center_push_overshoot"] = to_float(row.get("mean_center_push_overshoot"))
         row["_mean_best_center_push_progress"] = to_float(row.get("mean_best_center_push_progress"))
         row["_mean_center_push_improvement"] = to_float(row.get("mean_center_push_improvement"))
         row["_mean_best_target_center_distance"] = to_float(row.get("mean_best_target_center_distance"))
@@ -152,9 +154,11 @@ else:
                 pregrasp_alignment = r["_mean_pregrasp_alignment"] or alignment
                 insertion_alignment = r["_mean_insertion_alignment"] or alignment
                 contact_penalty = r["_mean_target_contact_penalty"] or 0.0
+                early_contact_penalty = r["_mean_early_target_contact_penalty"] or 0.0
                 center_progress = r["_mean_pregrasp_center_progress"] or 0.0
                 insertion_progress = r["_mean_insertion_progress"] or 0.0
                 center_push_progress = r["_mean_center_push_progress"] or 0.0
+                center_push_overshoot = r["_mean_center_push_overshoot"] or 0.0
                 best_center_push_progress = r["_mean_best_center_push_progress"] or center_push_progress
                 center_push_improvement = r["_mean_center_push_improvement"] or 0.0
                 best_center_distance = r["_mean_best_target_center_distance"]
@@ -222,6 +226,8 @@ else:
                     -0.50 * (best_center_distance if best_center_distance is not None else distance)
                     +10.0 * success
                     -5.0 * contact_penalty
+                    -6.0 * early_contact_penalty
+                    -3.0 * center_push_overshoot
                     -2.0 * line_error
                     +0.000001 * reward
                 )
@@ -291,8 +297,10 @@ print("mean_alignment=", best.get("mean_alignment"))
 print("pregrasp_align=", best.get("mean_pregrasp_alignment"))
 print("insert_align  =", best.get("mean_insertion_alignment"))
 print("contact_penalty=", best.get("mean_target_contact_penalty"))
+print("early_contact =", best.get("mean_early_target_contact_penalty"))
 print("center_prog  =", best.get("mean_pregrasp_center_progress"))
 print("push_prog    =", best.get("mean_center_push_progress"))
+print("push_overshot=", best.get("mean_center_push_overshoot"))
 print("best_push    =", best.get("mean_best_center_push_progress"))
 print("push_impr    =", best.get("mean_center_push_improvement"))
 print("best_center  =", best.get("mean_best_target_center_distance"))

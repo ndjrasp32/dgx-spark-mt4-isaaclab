@@ -117,7 +117,7 @@ class MT4ReachEnvCfg(DirectRLEnvCfg):
         prim_path="/Visuals/MT4PregraspTargets",
         markers={
             "pregrasp": sim_utils.SphereCfg(
-                radius=0.016,
+                radius=0.011,
                 visual_material=sim_utils.PreviewSurfaceCfg(
                     diffuse_color=(0.05, 0.25, 1.0),
                     emissive_color=(0.0, 0.05, 0.35),
@@ -210,6 +210,11 @@ class MT4ReachEnvCfg(DirectRLEnvCfg):
     center_push_improvement_scale = 0.020
     center_distance_shell_size = 0.005
     stage4_push_ready_progress = 0.60
+    stage4_success_min_progress = 0.78
+    stage4_success_max_progress = 1.08
+    early_target_clearance = 0.055
+    early_target_contact_penalty_weight = 160.0
+    stage4_overshoot_penalty_weight = 18.0
     gripper_roll_alignment_weight = 0.0
     pregrasp_bonus_weight = 2.5
     success_bonus_weight = 18.0
@@ -291,6 +296,9 @@ class MT4ReachEnv(DirectRLEnv):
         self.pregrasp_center_progress = torch.zeros((self.num_envs,), device=self.device)
         self.insertion_progress = torch.zeros((self.num_envs,), device=self.device)
         self.center_push_progress = torch.zeros((self.num_envs,), device=self.device)
+        self.center_push_progress_raw = torch.zeros((self.num_envs,), device=self.device)
+        self.center_push_overshoot = torch.zeros((self.num_envs,), device=self.device)
+        self.early_target_contact_penalty = torch.zeros((self.num_envs,), device=self.device)
         self.best_center_push_progress = torch.zeros((self.num_envs,), device=self.device)
         self.center_push_improvement = torch.zeros((self.num_envs,), device=self.device)
         self.best_target_center_distance = torch.full((self.num_envs,), 10.0, device=self.device)
@@ -499,6 +507,21 @@ class MT4ReachEnv(DirectRLEnv):
             )
             cfg.stage4_push_ready_progress = float(
                 os.environ.get("MT4_REACH_STAGE4_PUSH_READY_PROGRESS", "0.60")
+            )
+            cfg.stage4_success_min_progress = float(
+                os.environ.get("MT4_REACH_STAGE4_SUCCESS_MIN_PROGRESS", "0.78")
+            )
+            cfg.stage4_success_max_progress = float(
+                os.environ.get("MT4_REACH_STAGE4_SUCCESS_MAX_PROGRESS", "1.08")
+            )
+            cfg.early_target_clearance = float(
+                os.environ.get("MT4_REACH_EARLY_TARGET_CLEARANCE", "0.055")
+            )
+            cfg.early_target_contact_penalty_weight = float(
+                os.environ.get("MT4_REACH_EARLY_TARGET_CONTACT_PENALTY", "160.0")
+            )
+            cfg.stage4_overshoot_penalty_weight = float(
+                os.environ.get("MT4_REACH_STAGE4_OVERSHOOT_PENALTY", "18.0")
             )
             cfg.gripper_roll_alignment_weight = float(
                 os.environ.get("MT4_REACH_GRIPPER_ROLL_WEIGHT", "2.5")
@@ -742,6 +765,8 @@ class MT4ReachEnv(DirectRLEnv):
         moving_pregrasp_step_count = max(int(self.cfg.moving_pregrasp_step_count), 1)
         final_center_ready = (
             stage3_ready
+            & (self.center_push_progress_raw >= self.cfg.stage4_success_min_progress)
+            & (self.center_push_progress_raw <= self.cfg.stage4_success_max_progress)
             & (self.distance < self.cfg.final_center_success_radius)
             & (self.body_target_clearance_error <= 1e-4)
         )
@@ -751,6 +776,8 @@ class MT4ReachEnv(DirectRLEnv):
                 & (self.pregrasp_distance < self.cfg.final_center_success_radius)
                 & (self.insertion_alignment > self.cfg.insertion_alignment_success)
                 & (self.insertion_lateral_error < self.cfg.touch_success_band)
+                & (self.center_push_progress_raw >= self.cfg.stage4_success_min_progress)
+                & (self.center_push_progress_raw <= self.cfg.stage4_success_max_progress)
                 & (self.body_target_clearance_error <= 1e-4)
             )
         else:
@@ -875,6 +902,18 @@ class MT4ReachEnv(DirectRLEnv):
             final_insertion_gate = final_insertion_gate * (
                 self.moving_pregrasp_stage >= moving_pregrasp_step_count
             ).float()
+        final_approach_ready = (
+            stage3_ready
+            & (self.insertion_alignment > self.cfg.insertion_alignment_success)
+            & (self.insertion_lateral_error < self.cfg.touch_success_band)
+            & (self.center_push_progress_raw >= self.cfg.stage4_success_min_progress)
+            & (self.center_push_progress_raw <= self.cfg.stage4_success_max_progress)
+        )
+        early_target_contact_penalty = torch.where(
+            final_approach_ready,
+            torch.zeros_like(self.distance),
+            torch.clamp(float(self.cfg.early_target_clearance) - self.distance, min=0.0),
+        )
         final_insertion_reward = final_insertion_gate * (
             0.40 * center_push_reward
             + 0.30 * center_push_improvement_reward * center_shortest_path_score
@@ -933,6 +972,8 @@ class MT4ReachEnv(DirectRLEnv):
             + pregrasp_bonus
             + pregrasp_entry_success.float() * 0.5
             - self.cfg.target_contact_penalty_weight * self.target_contact_penalty
+            - self.cfg.early_target_contact_penalty_weight * early_target_contact_penalty
+            - self.cfg.stage4_overshoot_penalty_weight * self.center_push_overshoot * stage3_ready.float()
             - self.cfg.stage1_wrong_way_weight * wrong_way_penalty
             - self.cfg.action_penalty_weight * action_penalty
             - self.cfg.joint_velocity_penalty_weight * joint_velocity_penalty
@@ -948,6 +989,7 @@ class MT4ReachEnv(DirectRLEnv):
         self.moving_pregrasp_reward = moving_pregrasp_reward
         self.moving_pregrasp_funnel_reward = moving_pregrasp_funnel_reward
         self.final_insertion_reward = final_insertion_reward
+        self.early_target_contact_penalty = early_target_contact_penalty
         self.stage4_time_pressure = stage4_time_pressure
         return reward
 
@@ -1002,6 +1044,8 @@ class MT4ReachEnv(DirectRLEnv):
                 & (self.pregrasp_distance < self.cfg.final_center_success_radius)
                 & (self.insertion_alignment > self.cfg.insertion_alignment_success)
                 & (self.insertion_lateral_error < self.cfg.touch_success_band)
+                & (self.center_push_progress_raw >= self.cfg.stage4_success_min_progress)
+                & (self.center_push_progress_raw <= self.cfg.stage4_success_max_progress)
                 & (self.body_target_clearance_error <= 1e-4)
             )
         else:
@@ -1014,6 +1058,8 @@ class MT4ReachEnv(DirectRLEnv):
         )
         stage4_center_ready = (
             stage3_ready
+            & (self.center_push_progress_raw >= self.cfg.stage4_success_min_progress)
+            & (self.center_push_progress_raw <= self.cfg.stage4_success_max_progress)
             & (self.distance < self.cfg.final_center_success_radius)
             & (self.body_target_clearance_error <= 1e-4)
         )
@@ -1066,9 +1112,11 @@ class MT4ReachEnv(DirectRLEnv):
             "mt4/mean_object_overlap": self.object_overlap.mean(),
             "mt4/mean_body_target_clearance_error": self.body_target_clearance_error.mean(),
             "mt4/mean_target_contact_penalty": self.target_contact_penalty.mean(),
+            "mt4/mean_early_target_contact_penalty": self.early_target_contact_penalty.mean(),
             "mt4/mean_pregrasp_center_progress": self.pregrasp_center_progress.mean(),
             "mt4/mean_insertion_progress": self.insertion_progress.mean(),
             "mt4/mean_center_push_progress": self.center_push_progress.mean(),
+            "mt4/mean_center_push_overshoot": self.center_push_overshoot.mean(),
             "mt4/mean_best_center_push_progress": self.best_center_push_progress.mean(),
             "mt4/mean_center_push_improvement": self.center_push_improvement.mean(),
             "mt4/mean_best_target_center_distance": torch.clamp(
@@ -1157,6 +1205,9 @@ class MT4ReachEnv(DirectRLEnv):
         self.target_center_shell_improvement[env_ids] = 0.0
         self.center_shortest_path_score[env_ids] = 0.0
         self.stage4_time_pressure[env_ids] = 0.0
+        self.early_target_contact_penalty[env_ids] = 0.0
+        self.center_push_progress_raw[env_ids] = 0.0
+        self.center_push_overshoot[env_ids] = 0.0
         self.stage3_time_preserve[env_ids] = 0.0
         self.terminal_success_quality[env_ids] = 0.0
         self.near_terminal_reward[env_ids] = 0.0
@@ -1391,10 +1442,15 @@ class MT4ReachEnv(DirectRLEnv):
         insertion_path_length = torch.linalg.norm(self.touch_targets - self.pregrasp_targets, dim=-1)
         raw_progress = torch.sum((self.gripper_tip_pos - self.pregrasp_targets) * self.approach_dir, dim=-1)
         self.insertion_progress = torch.clamp(raw_progress / torch.clamp(insertion_path_length, min=1e-6), min=0.0, max=1.0)
-        center_path_length = torch.linalg.norm(self.targets - self.pregrasp_targets, dim=-1)
-        raw_center_push = torch.sum((self.gripper_tip_pos - self.pregrasp_targets) * self.approach_dir, dim=-1)
+        center_path_length = torch.linalg.norm(self.targets - self.pregrasp_start_targets, dim=-1)
+        raw_center_push = torch.sum((self.gripper_tip_pos - self.pregrasp_start_targets) * self.approach_dir, dim=-1)
+        self.center_push_progress_raw = raw_center_push / torch.clamp(center_path_length, min=1e-6)
         self.center_push_progress = torch.clamp(
-            raw_center_push / torch.clamp(center_path_length, min=1e-6), min=0.0, max=1.0
+            self.center_push_progress_raw, min=0.0, max=1.0
+        )
+        self.center_push_overshoot = torch.clamp(
+            self.center_push_progress_raw - float(self.cfg.stage4_success_max_progress),
+            min=0.0,
         )
 
     def _update_target_markers(self):
@@ -1417,6 +1473,8 @@ class MT4ReachEnv(DirectRLEnv):
                 & (self.insertion_alignment > self.cfg.insertion_alignment_success)
                 & (self.insertion_lateral_error < self.cfg.touch_success_band)
                 & (self.insertion_progress > self.cfg.stage3_insertion_start_progress)
+                & (self.center_push_progress_raw >= self.cfg.stage4_success_min_progress)
+                & (self.center_push_progress_raw <= self.cfg.stage4_success_max_progress)
                 & (self.distance < self.cfg.final_center_success_radius)
                 & (self.body_target_clearance_error <= 1e-4)
             )
@@ -1427,6 +1485,8 @@ class MT4ReachEnv(DirectRLEnv):
                     & (self.pregrasp_distance < self.cfg.final_center_success_radius)
                     & (self.insertion_alignment > self.cfg.insertion_alignment_success)
                     & (self.insertion_lateral_error < self.cfg.touch_success_band)
+                    & (self.center_push_progress_raw >= self.cfg.stage4_success_min_progress)
+                    & (self.center_push_progress_raw <= self.cfg.stage4_success_max_progress)
                     & (self.body_target_clearance_error <= 1e-4)
                 )
                 success = success | blue_final_center_ready

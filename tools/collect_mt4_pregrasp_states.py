@@ -58,12 +58,29 @@ parser.add_argument(
     help="Optional maximum gripper-center to red-target-center distance.",
 )
 parser.add_argument(
+    "--min_distance",
+    type=float,
+    default=None,
+    help="Optional minimum gripper-center to red-target-center distance.",
+)
+parser.add_argument(
+    "--max_insertion_progress",
+    type=float,
+    default=None,
+    help="Optional maximum insertion progress. Useful for collecting safer Stage-4 entry states.",
+)
+parser.add_argument(
     "--pregrasp_line_error",
     type=float,
     default=0.005,
     help="Maximum XY line error between the blue pregrasp marker and the base-to-target radial line.",
 )
 parser.add_argument("--target_contact_penalty", type=float, default=1.0e-4, help="Maximum target contact penalty.")
+parser.add_argument(
+    "--allow_unheld",
+    action="store_true",
+    help="Collect states that satisfy geometry filters even if pregrasp_held has not latched yet.",
+)
 cli_args.add_rsl_rl_args(parser)
 AppLauncher.add_app_launcher_args(parser)
 args_cli, hydra_args = parser.parse_known_args()
@@ -164,15 +181,19 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
         ready = (
             (base_env.pregrasp_distance < args_cli.pregrasp_distance)
             & (base_env.insertion_alignment > args_cli.insertion_alignment)
-            & base_env.pregrasp_held
+            & (base_env.pregrasp_held | args_cli.allow_unheld)
             & (base_env.pregrasp_line_error <= args_cli.pregrasp_line_error)
             & (base_env.target_contact_penalty <= args_cli.target_contact_penalty)
             & (cooldown <= 0)
         )
         if args_cli.min_insertion_progress is not None:
             ready = ready & (base_env.insertion_progress >= args_cli.min_insertion_progress)
+        if args_cli.max_insertion_progress is not None:
+            ready = ready & (base_env.insertion_progress <= args_cli.max_insertion_progress)
         if args_cli.max_touch_error is not None:
             ready = ready & (base_env.touch_error <= args_cli.max_touch_error)
+        if args_cli.min_distance is not None:
+            ready = ready & (base_env.distance >= args_cli.min_distance)
         if args_cli.max_distance is not None:
             ready = ready & (base_env.distance <= args_cli.max_distance)
         ready_ids = torch.nonzero(ready, as_tuple=False).squeeze(-1)
@@ -223,8 +244,11 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
         "insertion_alignment_threshold": args_cli.insertion_alignment,
         "pregrasp_line_error_threshold": args_cli.pregrasp_line_error,
         "target_contact_penalty_threshold": args_cli.target_contact_penalty,
+        "allow_unheld": args_cli.allow_unheld,
         "min_insertion_progress_threshold": args_cli.min_insertion_progress,
+        "max_insertion_progress_threshold": args_cli.max_insertion_progress,
         "max_touch_error_threshold": args_cli.max_touch_error,
+        "min_distance_threshold": args_cli.min_distance,
         "max_distance_threshold": args_cli.max_distance,
         "joint_names": list(base_env.joint_names),
     }
