@@ -39,6 +39,8 @@ bash -n scripts/train_128_1000.sh \
   scripts/train_stage4_guided_blue_128_300.sh \
   scripts/train_stage4_blue_center_128_300.sh \
   scripts/train_stage4_blue_funnel_128_800.sh \
+  scripts/train_stage4_relaxed_gate_128_300.sh \
+  scripts/train_stage4_relaxed_gate_scratch_128_500.sh \
   scripts/play_stage4_blue_center_best.sh \
   scripts/train_stage4_center_visual_low_exploration_16_120.sh \
   scripts/copy_latest_training_video_lowres.sh \

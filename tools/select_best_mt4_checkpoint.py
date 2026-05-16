@@ -20,6 +20,10 @@ with CSV_PATH.open("r", encoding="utf-8") as f:
             except Exception:
                 return None
 
+        try:
+            row["_iteration"] = int(row.get("iteration") or 0)
+        except Exception:
+            row["_iteration"] = 0
         row["_success_rate"] = to_float(row.get("success_rate"))
         row["_stage1_alignment_ready_rate"] = to_float(row.get("stage1_alignment_ready_rate"))
         row["_stage1_latched_rate"] = to_float(row.get("stage1_latched_rate"))
@@ -36,6 +40,7 @@ with CSV_PATH.open("r", encoding="utf-8") as f:
         row["_stage3_latched_rate"] = to_float(row.get("stage3_latched_rate"))
         row["_stage3_touch_ready_rate"] = to_float(row.get("stage3_touch_ready_rate"))
         row["_stage4_center_ready_rate"] = to_float(row.get("stage4_center_ready_rate"))
+        row["_blue_final_center_ready_rate"] = to_float(row.get("blue_final_center_ready_rate"))
         row["_stage4_push_ready_rate"] = to_float(row.get("stage4_push_ready_rate"))
         row["_mean_pregrasp_entry_distance"] = to_float(row.get("mean_pregrasp_entry_distance"))
         row["_mean_pregrasp_distance"] = to_float(row.get("mean_pregrasp_distance"))
@@ -73,6 +78,7 @@ with CSV_PATH.open("r", encoding="utf-8") as f:
         row["_mean_best_moving_pregrasp_distance"] = to_float(row.get("mean_best_moving_pregrasp_distance"))
         row["_mean_final_insertion_reward"] = to_float(row.get("mean_final_insertion_reward"))
         row["_mean_pregrasp_line_error"] = to_float(row.get("mean_pregrasp_line_error"))
+        row["_mean_gripper_roll_alignment"] = to_float(row.get("mean_gripper_roll_alignment"))
         row["_mean_reward"] = to_float(row.get("mean_reward"))
         row["_primary_distance"] = row["_mean_pregrasp_distance"]
         if row["_primary_distance"] is None:
@@ -82,9 +88,21 @@ with CSV_PATH.open("r", encoding="utf-8") as f:
 if not rows:
     raise SystemExit("[ERROR] no rows in checkpoint summary")
 
-# success_rate가 거의 0에 가까운 reach 초기 실험에서는 우연한 초기 성공이
-# best checkpoint를 왜곡할 수 있다. 이 경우 mean_distance를 우선한다.
-rows_with_success = [r for r in rows if r["_success_rate"] is not None]
+# 학습 초반에는 reset 직후 자세/타겟 배치 우연성 때문에 success_rate가 크게 튈 수 있다.
+# 충분히 진행된 checkpoint만 best 후보로 삼아 model_0/model_50 같은 초기 착시를 피한다.
+max_iteration = max(r["_iteration"] for r in rows)
+min_candidate_iteration = 0
+if max_iteration >= 100:
+    min_candidate_iteration = max(1, int(max_iteration * 0.50))
+elif max_iteration > 0:
+    min_candidate_iteration = 1
+
+candidate_rows = [r for r in rows if r["_iteration"] >= min_candidate_iteration]
+if not candidate_rows:
+    candidate_rows = rows
+    min_candidate_iteration = 0
+
+rows_with_success = [r for r in candidate_rows if r["_success_rate"] is not None]
 max_success_rate = max((r["_success_rate"] for r in rows_with_success), default=None)
 
 if rows_with_success and max_success_rate is not None and max_success_rate >= 0.01:
@@ -93,13 +111,16 @@ if rows_with_success and max_success_rate is not None and max_success_rate >= 0.
         key=lambda r: (
             r["_success_rate"],
             -9999.0 if r["_primary_distance"] is None else -r["_primary_distance"],
+            -9999.0 if r["_blue_final_center_ready_rate"] is None else r["_blue_final_center_ready_rate"],
             -9999.0 if r["_mean_alignment"] is None else r["_mean_alignment"],
+            -9999.0 if r["_mean_gripper_roll_alignment"] is None else r["_mean_gripper_roll_alignment"],
             -9999.0 if r["_mean_reward"] is None else r["_mean_reward"],
+            r["_iteration"],
         ),
     )
-    reason = "highest meaningful success_rate"
+    reason = f"highest meaningful success_rate after iteration {min_candidate_iteration}"
 else:
-    rows_with_distance = [r for r in rows if r["_primary_distance"] is not None]
+    rows_with_distance = [r for r in candidate_rows if r["_primary_distance"] is not None]
     if rows_with_distance:
         rows_with_alignment = [
             r for r in rows_with_distance
@@ -151,6 +172,11 @@ else:
                 moving_pregrasp_reward = r["_mean_moving_pregrasp_reward"] or 0.0
                 final_insertion_reward = r["_mean_final_insertion_reward"] or 0.0
                 line_error = r["_mean_pregrasp_line_error"] or 0.0
+                blue_final_center = r["_blue_final_center_ready_rate"] or 0.0
+                gripper_roll_alignment = r["_mean_gripper_roll_alignment"]
+                gripper_roll_score = 0.0
+                if gripper_roll_alignment is not None:
+                    gripper_roll_score = max(0.0, min(1.0, 0.5 * (gripper_roll_alignment + 1.0)))
                 reward = r["_mean_reward"] or 0.0
                 return (
                     -distance
@@ -189,6 +215,8 @@ else:
                     +0.20 * moving_pregrasp_fraction
                     +0.60 * moving_pregrasp_final
                     +0.20 * moving_pregrasp_reward
+                    +0.60 * blue_final_center
+                    +0.10 * gripper_roll_score
                     +0.80 * final_insertion_reward
                     -0.05 * stage4_time_pressure
                     -0.50 * (best_center_distance if best_center_distance is not None else distance)
@@ -199,7 +227,10 @@ else:
                 )
 
             best = max(rows_with_alignment, key=balanced_score)
-            reason = "best balanced pregrasp distance and alignment because success_rate is below 0.01"
+            reason = (
+                "best balanced pregrasp/stage progress after iteration "
+                f"{min_candidate_iteration} because mature success_rate is below 0.01"
+            )
         else:
             best = min(
                 rows_with_distance,
@@ -211,17 +242,23 @@ else:
                 ),
             )
             if best["_mean_pregrasp_distance"] is not None:
-                reason = "lowest mean_pregrasp_distance because success_rate and alignment are below thresholds"
+                reason = (
+                    "lowest mean_pregrasp_distance after iteration "
+                    f"{min_candidate_iteration} because success_rate and alignment are below thresholds"
+                )
             else:
-                reason = "lowest mean_distance because success_rate and alignment are below thresholds"
+                reason = (
+                    "lowest mean_distance after iteration "
+                    f"{min_candidate_iteration} because success_rate and alignment are below thresholds"
+                )
     else:
-        rows_with_reward = [r for r in rows if r["_mean_reward"] is not None]
+        rows_with_reward = [r for r in candidate_rows if r["_mean_reward"] is not None]
         if rows_with_reward:
             best = max(rows_with_reward, key=lambda r: r["_mean_reward"])
-            reason = "highest mean_reward"
+            reason = f"highest mean_reward after iteration {min_candidate_iteration}"
         else:
             # fallback: latest iteration
-            best = max(rows, key=lambda r: int(r.get("iteration", 0)))
+            best = max(candidate_rows, key=lambda r: r["_iteration"])
             reason = "latest checkpoint fallback"
 
 print("========== BEST MT4 CHECKPOINT ==========")
@@ -244,6 +281,7 @@ print("stage3_ready  =", best.get("stage3_insertion_ready_rate"))
 print("stage3_latch  =", best.get("stage3_latched_rate"))
 print("stage3_touch  =", best.get("stage3_touch_ready_rate"))
 print("stage4_center =", best.get("stage4_center_ready_rate"))
+print("blue_final    =", best.get("blue_final_center_ready_rate"))
 print("stage4_push   =", best.get("stage4_push_ready_rate"))
 print("entry_dist    =", best.get("mean_pregrasp_entry_distance"))
 print("pregrasp_dist =", best.get("mean_pregrasp_distance"))
@@ -278,6 +316,7 @@ print("moving_shell =", best.get("mean_moving_pregrasp_shell_improvement"))
 print("moving_best_d=", best.get("mean_best_moving_pregrasp_distance"))
 print("final_insert=", best.get("mean_final_insertion_reward"))
 print("line_error   =", best.get("mean_pregrasp_line_error"))
+print("gripper_roll =", best.get("mean_gripper_roll_alignment"))
 print("min_distance  =", best.get("min_distance"))
 print("mean_reward   =", best.get("mean_reward"))
 print("path          =", best.get("path"))
