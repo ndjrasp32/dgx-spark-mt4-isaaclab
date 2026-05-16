@@ -452,7 +452,7 @@ class MT4ReachEnv(DirectRLEnv):
                 os.environ.get("MT4_REACH_MOVING_PREGRASP_FINAL_FRACTION", "0.70")
             )
             cfg.moving_pregrasp_step_radius = float(
-                os.environ.get("MT4_REACH_MOVING_PREGRASP_STEP_RADIUS", "0.045")
+                os.environ.get("MT4_REACH_MOVING_PREGRASP_STEP_RADIUS", "0.080")
             )
             cfg.moving_pregrasp_hold_steps = int(
                 os.environ.get("MT4_REACH_MOVING_PREGRASP_HOLD_STEPS", "2")
