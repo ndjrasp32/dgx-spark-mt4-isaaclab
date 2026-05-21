@@ -56,7 +56,7 @@ def _cube_cfg(
                 restitution=0.02,
             ),
             visual_material=sim_utils.PreviewSurfaceCfg(
-                diffuse_color=(*color, 1.0),
+                diffuse_color=color,
                 emissive_color=emissive,
             ),
         ),
