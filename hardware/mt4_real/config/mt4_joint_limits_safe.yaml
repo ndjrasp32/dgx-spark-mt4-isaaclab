@@ -1,0 +1,15 @@
+base_yaw:
+  min_deg: -20
+  max_deg: 20
+shoulder:
+  min_deg: -10
+  max_deg: 20
+elbow:
+  min_deg: -20
+  max_deg: 20
+wrist_pitch:
+  min_deg: -15
+  max_deg: 15
+gripper_pitch:
+  min_deg: -10
+  max_deg: 10

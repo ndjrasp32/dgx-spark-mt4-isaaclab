@@ -1,0 +1,27 @@
+serial_port: /dev/ttyUSB0
+baudrate: 115200
+
+joint_order:
+  - base_yaw
+  - shoulder
+  - elbow
+  - wrist_pitch
+  - gripper_pitch
+
+joint_sign:
+  base_yaw: 1
+  shoulder: 1
+  elbow: 1
+  wrist_pitch: 1
+  gripper_pitch: 1
+
+joint_offset_deg:
+  base_yaw: 0.0
+  shoulder: 0.0
+  elbow: 0.0
+  wrist_pitch: 0.0
+  gripper_pitch: 0.0
+
+max_delta_deg_per_command: 1.0
+command_interval_sec: 0.5
+dry_run_default: true

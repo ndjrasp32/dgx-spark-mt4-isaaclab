@@ -47,6 +47,8 @@ bash -n scripts/train_128_1000.sh \
   scripts/play_stage4_smooth_blue_funnel_best.sh \
   scripts/train_stage4_center_visual_low_exploration_16_120.sh \
   scripts/copy_latest_training_video_lowres.sh \
+  scripts/create_two_finger_asset.sh \
+  scripts/view_mars_twin.sh \
   scripts/verify_before_push.sh
 
 echo "[INFO] Checking Python syntax..."
@@ -54,7 +56,10 @@ echo "[INFO] Checking Python syntax..."
 "${ISAACLAB_DIR}/isaaclab.sh" -p -m py_compile "${PROJECT_DIR}/tools/plot_mt4_training_and_checkpoints.py"
 "${ISAACLAB_DIR}/isaaclab.sh" -p -m py_compile "${PROJECT_DIR}/tools/select_best_mt4_checkpoint.py"
 "${ISAACLAB_DIR}/isaaclab.sh" -p -m py_compile "${PROJECT_DIR}/tools/collect_mt4_pregrasp_states.py"
+"${ISAACLAB_DIR}/isaaclab.sh" -p -m py_compile "${PROJECT_DIR}/tools/create_mt4_simplified_v4_two_finger_gripper.py"
+"${ISAACLAB_DIR}/isaaclab.sh" -p -m py_compile "${PROJECT_DIR}/tools/view_mt4_mars_twin.py"
 "${ISAACLAB_DIR}/isaaclab.sh" -p -m py_compile "${PROJECT_DIR}/source/mt4_reach_direct/mt4_reach_env.py"
+"${ISAACLAB_DIR}/isaaclab.sh" -p -m py_compile "${PROJECT_DIR}/source/mt4_reach_direct/mt4_mars_twin_env.py"
 
 echo "[INFO] Running plot/select smoke test..."
 MT4_SKIP_PLOT_SNAPSHOT=1 scripts/plot_and_select_best.sh
